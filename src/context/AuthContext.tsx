@@ -58,13 +58,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (isFirebaseConfigured && auth) {
         const credential = await signInWithEmailAndPassword(auth, email, pass);
-        const profile = await getUserProfile(credential.user.uid);
-        if (profile) {
-          setUser(profile);
-          localStorage.setItem('cognicare_active_user', JSON.stringify(profile));
-        } else {
-          throw new Error('User profile not found in database.');
+        let profile = await getUserProfile(credential.user.uid);
+        if (!profile) {
+          profile = {
+            uid: credential.user.uid,
+            name: credential.user.displayName || email.split('@')[0],
+            email: credential.user.email || email,
+            role: 'patient',
+            createdAt: new Date().toISOString(),
+          };
+          await saveUserProfile(profile);
         }
+        setUser(profile);
+        localStorage.setItem('cognicare_active_user', JSON.stringify(profile));
       } else {
         const demoUsers = JSON.parse(localStorage.getItem('cognicare_demo_users') || '{}');
         const found = Object.values(demoUsers).find((u: any) => u.email.toLowerCase() === email.toLowerCase()) as UserProfile | undefined;
