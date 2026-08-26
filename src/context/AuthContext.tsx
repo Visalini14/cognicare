@@ -57,20 +57,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       if (isFirebaseConfigured && auth) {
-        const credential = await signInWithEmailAndPassword(auth, email, pass);
-        let profile = await getUserProfile(credential.user.uid);
-        if (!profile) {
-          profile = {
-            uid: credential.user.uid,
-            name: credential.user.displayName || email.split('@')[0],
-            email: credential.user.email || email,
-            role: 'patient',
-            createdAt: new Date().toISOString(),
-          };
-          await saveUserProfile(profile);
+        try {
+          const credential = await signInWithEmailAndPassword(auth, email, pass);
+          let profile = await getUserProfile(credential.user.uid);
+          if (!profile) {
+            profile = {
+              uid: credential.user.uid,
+              name: credential.user.displayName || email.split('@')[0],
+              email: credential.user.email || email,
+              role: 'patient',
+              createdAt: new Date().toISOString(),
+            };
+            await saveUserProfile(profile);
+          }
+          setUser(profile);
+          localStorage.setItem('cognicare_active_user', JSON.stringify(profile));
+          return;
+        } catch (fbErr: any) {
+          if (fbErr.code === 'auth/configuration-not-found') {
+            throw new Error('Firebase Authentication is not initialized in your Firebase Console. Please go to Firebase Console -> Authentication -> click "Get Started" and enable "Email/Password".');
+          }
+          if (fbErr.code === 'auth/invalid-credential' || fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/wrong-password') {
+            throw new Error('Invalid email or password.');
+          }
+          throw fbErr;
         }
-        setUser(profile);
-        localStorage.setItem('cognicare_active_user', JSON.stringify(profile));
       } else {
         const demoUsers = JSON.parse(localStorage.getItem('cognicare_demo_users') || '{}');
         const found = Object.values(demoUsers).find((u: any) => u.email.toLowerCase() === email.toLowerCase()) as UserProfile | undefined;
@@ -91,8 +102,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       let uid = 'user-' + Date.now();
       if (isFirebaseConfigured && auth) {
-        const credential = await createUserWithEmailAndPassword(auth, email, pass);
-        uid = credential.user.uid;
+        try {
+          const credential = await createUserWithEmailAndPassword(auth, email, pass);
+          uid = credential.user.uid;
+        } catch (fbErr: any) {
+          if (fbErr.code === 'auth/configuration-not-found') {
+            throw new Error('Firebase Authentication is not initialized in your Firebase Console. Please go to Firebase Console -> Authentication -> click "Get Started" and enable "Email/Password".');
+          }
+          if (fbErr.code === 'auth/email-already-in-use') {
+            throw new Error('An account with this email address already exists. Please log in instead.');
+          }
+          if (fbErr.code === 'auth/weak-password') {
+            throw new Error('Password should be at least 6 characters long.');
+          }
+          throw fbErr;
+        }
       }
 
       const newProfile: UserProfile = {
