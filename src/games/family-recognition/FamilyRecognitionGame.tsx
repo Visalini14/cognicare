@@ -15,8 +15,17 @@ import { GameHeader } from '../../components/common/GameHeader';
 import { ResultScreen } from '../../components/common/ResultScreen';
 import { Button, Card, EmptyState } from '../../components/common/UIComponents';
 import { VoiceInput } from '../../components/common/VoiceInput';
-import { Users, Heart, HelpCircle, ArrowRight, Play, Camera, CameraOff, AlertCircle, Bug, CheckCircle2, Cpu } from 'lucide-react';
+import { Users, Heart, HelpCircle, ArrowRight, Play, Camera, CameraOff, AlertCircle, Bug, CheckCircle2, XCircle, Cpu } from 'lucide-react';
 import type { FamilyMember } from '../../types';
+
+export interface PhotoQuizOption {
+  id: string;
+  photoUrl: string;
+  name: string;
+  relationship: string;
+  isCorrect: boolean;
+  labelIndex: number;
+}
 
 export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> = ({ onBackToDashboard }) => {
   const { user } = useAuth();
@@ -157,17 +166,74 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
 
   const currentMember = familyMembers[currentIndex];
 
-  const quizOptions = React.useMemo(() => {
+  const INDIAN_DUMMY_PHOTOS = [
+    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=500&q=80',
+    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=500&q=80',
+  ];
+
+  const quizPhotoOptions: PhotoQuizOption[] = React.useMemo(() => {
     if (!currentMember || familyMembers.length === 0) return [];
-    const correctName = currentMember.name;
 
-    const pool = ['Anu', 'Ravi', 'Meena', 'Priya', 'Kiran', 'Vikram', 'Rajesh', 'Sita'];
-    const otherNames = familyMembers.map((m) => m.name).filter((n) => n !== correctName);
-    const combinedPool = Array.from(new Set([...otherNames, ...pool])).filter((n) => n !== correctName);
+    // 1. Correct Option (Real uploaded photo of current family member from Caregiver Portal)
+    const correctOpt: PhotoQuizOption = {
+      id: currentMember.id || `correct-${currentIndex}`,
+      photoUrl: currentMember.photoUrl,
+      name: currentMember.name,
+      relationship: currentMember.relationship,
+      isCorrect: true,
+      labelIndex: 0,
+    };
 
-    const distractors = combinedPool.slice(0, 3);
-    return [correctName, ...distractors].sort(() => 0.5 - Math.random());
-  }, [currentMember, familyMembers]);
+    // 2. Distractor options from other uploaded family members
+    const otherMembers = familyMembers
+      .filter((m) => m.id !== currentMember.id && m.photoUrl !== currentMember.photoUrl)
+      .map((m) => ({
+        id: m.id,
+        photoUrl: m.photoUrl,
+        name: m.name,
+        relationship: m.relationship,
+        isCorrect: false,
+        labelIndex: 0,
+      }));
+
+    // 3. Fill up to 3 distractors using curated Indian stock photos
+    const dummyDistractors: PhotoQuizOption[] = [];
+    const baseOffset = currentIndex * 3;
+    for (let i = 0; i < 3; i++) {
+      const dummyUrl = INDIAN_DUMMY_PHOTOS[(baseOffset + i) % INDIAN_DUMMY_PHOTOS.length];
+      if (dummyUrl !== currentMember.photoUrl && !otherMembers.some((om) => om.photoUrl === dummyUrl)) {
+        dummyDistractors.push({
+          id: `dummy-${currentIndex}-${i}`,
+          photoUrl: dummyUrl,
+          name: `Relative ${i + 1}`,
+          relationship: 'Relative',
+          isCorrect: false,
+          labelIndex: 0,
+        });
+      }
+    }
+
+    const distractors = [...otherMembers, ...dummyDistractors].slice(0, 3);
+    const combined = [correctOpt, ...distractors];
+
+    // Seeded shuffle so order stays fixed for this question
+    const seed = (currentIndex + 1) * 31;
+    const shuffled = combined.sort((a, b) => {
+      const hashA = (a.photoUrl.length * seed) % 100;
+      const hashB = (b.photoUrl.length * seed) % 100;
+      return hashA - hashB;
+    });
+
+    return shuffled.map((opt, idx) => ({ ...opt, labelIndex: idx + 1 }));
+  }, [currentMember, familyMembers, currentIndex]);
 
   const startRecallMode = () => {
     setCurrentIndex(0);
@@ -197,14 +263,14 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
     }
   };
 
-  const handleSelectQuizOption = async (name: string, method: 'button' | 'voice' = 'button') => {
+  const handleSelectQuizOption = async (option: PhotoQuizOption, method: 'button' | 'voice' = 'button') => {
     if (isAnswered) return;
 
-    setSelectedOption(name);
+    setSelectedOption(option.id);
     setIsAnswered(true);
     setVoiceNotice(null);
 
-    const isCorrect = name === currentMember.name;
+    const isCorrect = option.isCorrect;
 
     if (isCorrect) {
       setCorrectAnswers((prev) => prev + 1);
@@ -227,7 +293,7 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
       } else {
         finishQuiz(isCorrect ? correctAnswers + 1 : correctAnswers, method);
       }
-    }, 1600);
+    }, 2200);
   };
 
   const handleSpokenAnswer = (spokenText: string) => {
@@ -235,17 +301,28 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
 
     const cleanSpoken = spokenText.toLowerCase().replace(/[^\w\s]/gi, '').trim();
 
-    const matchedOption = quizOptions.find((opt) => {
-      const cleanOpt = opt.toLowerCase().trim();
-      return cleanSpoken === cleanOpt || cleanSpoken.includes(cleanOpt) || cleanOpt.includes(cleanSpoken);
-    });
+    let matchedOption: PhotoQuizOption | undefined;
+
+    if (cleanSpoken.includes('1') || cleanSpoken.includes('first') || cleanSpoken.includes('one')) {
+      matchedOption = quizPhotoOptions.find((o) => o.labelIndex === 1);
+    } else if (cleanSpoken.includes('2') || cleanSpoken.includes('second') || cleanSpoken.includes('two')) {
+      matchedOption = quizPhotoOptions.find((o) => o.labelIndex === 2);
+    } else if (cleanSpoken.includes('3') || cleanSpoken.includes('third') || cleanSpoken.includes('three')) {
+      matchedOption = quizPhotoOptions.find((o) => o.labelIndex === 3);
+    } else if (cleanSpoken.includes('4') || cleanSpoken.includes('fourth') || cleanSpoken.includes('four')) {
+      matchedOption = quizPhotoOptions.find((o) => o.labelIndex === 4);
+    } else {
+      matchedOption = quizPhotoOptions.find((o) => {
+        const cleanName = o.name.toLowerCase();
+        const cleanRel = o.relationship.toLowerCase();
+        return cleanSpoken.includes(cleanName) || cleanSpoken.includes(cleanRel);
+      });
+    }
 
     if (matchedOption) {
       handleSelectQuizOption(matchedOption, 'voice');
-    } else if (cleanSpoken.includes(currentMember.relationship.toLowerCase())) {
-      handleSelectQuizOption(currentMember.name, 'voice');
     } else {
-      setVoiceNotice(`I couldn't match "${spokenText}". Please try speaking again or tap an answer button.`);
+      setVoiceNotice(`I heard "${spokenText}". Say "Option 1", "Option 2", "Option 3", "Option 4" or tap a photo.`);
     }
   };
 
@@ -532,32 +609,35 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
     );
   }
 
-  /* MODE 2: QUIZ MODE (PRESERVED WITH BUTTON + VOICE INPUT) */
+  /* MODE 2: QUIZ MODE (ASK: WHICH PHOTO IS YOUR [RELATIONSHIP] WITH 4 PHOTO OPTIONS) */
   if (mode === 'quiz') {
     return (
-      <div className="max-w-2xl mx-auto py-8 px-4">
+      <div className="max-w-4xl mx-auto py-8 px-4 space-y-6">
         <GameHeader
           title="Family Quiz"
           level={currentLevel}
           score={correctAnswers * 30}
           onBack={() => setMode('select')}
-          instruction={`Who is in this photo? (${currentIndex + 1} of ${familyMembers.length})`}
+          instruction={`Question ${currentIndex + 1} of ${familyMembers.length}`}
         />
 
-        <Card className="text-center p-8 sm:p-10 border-3 border-indigo-300 shadow-xl space-y-6">
-          <div className="w-64 h-64 mx-auto rounded-3xl overflow-hidden shadow-lg border-4 border-white">
-            <img
-              src={currentMember.photoUrl}
-              alt="Family member photo"
-              className="w-full h-full object-cover"
-            />
+        <Card className="text-center p-6 sm:p-10 border-3 border-indigo-300 shadow-xl space-y-8">
+          {/* QUESTION BANNER */}
+          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-teal-800 text-white p-6 sm:p-8 rounded-3xl space-y-2 shadow-md">
+            <span className="inline-block px-3 py-1 bg-white/20 backdrop-blur-md text-teal-200 text-xs font-black uppercase tracking-wider rounded-full">
+              Family Photo Identification
+            </span>
+            <h3 className="text-2xl sm:text-4xl font-black leading-tight tracking-tight">
+              Which photo shows your <span className="text-amber-300 underline decoration-amber-400 decoration-wavy underline-offset-4">{currentMember.relationship}</span>?
+            </h3>
+            <p className="text-teal-200 text-lg font-bold">
+              ({currentMember.name})
+            </p>
           </div>
-
-          <h3 className="text-3xl font-black text-slate-900">Who is this?</h3>
 
           {!isAnswered && (
             <div className="pt-2">
-              <VoiceInput onConfirmAnswer={handleSpokenAnswer} promptText="Speak person's name" />
+              <VoiceInput onConfirmAnswer={handleSpokenAnswer} promptText='Say "Option 1", "Option 2", "Option 3" or "Option 4"' />
             </div>
           )}
 
@@ -567,49 +647,93 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
             </div>
           )}
 
+          {/* 4 PHOTO CARDS GRID */}
           <div>
-            <p className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4">Or tap an answer below:</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
-              {quizOptions.map((option, idx) => {
-                const isSelected = selectedOption === option;
-                const isCorrect = option === currentMember.name;
+            <p className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4">
+              Tap the correct photo card below:
+            </p>
 
-                let btnStyle = 'bg-white border-3 border-slate-300 hover:border-indigo-700 text-slate-900';
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+              {quizPhotoOptions.map((option) => {
+                const isSelected = selectedOption === option.id;
+                const isCorrect = option.isCorrect;
+
+                let cardStyle = 'bg-white border-3 border-slate-300 hover:border-teal-600 hover:shadow-xl';
+                let badgeStyle = 'bg-slate-800 text-white';
+
                 if (isAnswered) {
                   if (isCorrect) {
-                    btnStyle = 'bg-emerald-600 border-3 border-emerald-700 text-white shadow-lg';
+                    cardStyle = 'bg-emerald-50 border-4 border-emerald-600 ring-4 ring-emerald-300 shadow-2xl scale-105';
+                    badgeStyle = 'bg-emerald-600 text-white';
                   } else if (isSelected) {
-                    btnStyle = 'bg-rose-600 border-3 border-rose-700 text-white shadow-lg';
+                    cardStyle = 'bg-rose-50 border-4 border-rose-600 opacity-80';
+                    badgeStyle = 'bg-rose-600 text-white';
                   } else {
-                    btnStyle = 'bg-slate-100 text-slate-400 opacity-50 border-slate-200';
+                    cardStyle = 'bg-slate-100 border-slate-200 opacity-40';
+                    badgeStyle = 'bg-slate-400 text-white';
                   }
                 }
 
                 return (
                   <button
-                    key={idx}
+                    key={option.id}
                     onClick={() => handleSelectQuizOption(option, 'button')}
                     disabled={isAnswered}
-                    className={`p-5 rounded-3xl font-extrabold text-2xl transition-all cursor-pointer min-h-[68px] ${btnStyle}`}
+                    className={`relative rounded-3xl overflow-hidden transition-all duration-300 cursor-pointer flex flex-col items-center group ${cardStyle}`}
                   >
-                    {option}
+                    {/* OPTION NUMBER BADGE */}
+                    <div className={`absolute top-3 left-3 z-10 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider shadow-md ${badgeStyle}`}>
+                      Option {option.labelIndex}
+                    </div>
+
+                    {/* PHOTO PREVIEW */}
+                    <div className="w-full h-44 sm:h-52 overflow-hidden bg-slate-200">
+                      <img
+                        src={option.photoUrl}
+                        alt={`Option ${option.labelIndex}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=500&q=80';
+                        }}
+                      />
+                    </div>
+
+                    {/* SELECTION LABEL */}
+                    <div className="p-3 w-full text-center bg-white border-t border-slate-100 font-extrabold text-sm sm:text-base">
+                      {isAnswered ? (
+                        isCorrect ? (
+                          <span className="text-emerald-700 flex items-center justify-center gap-1">
+                            <CheckCircle2 className="w-4 h-4" /> {option.name}
+                          </span>
+                        ) : isSelected ? (
+                          <span className="text-rose-700 flex items-center justify-center gap-1">
+                            <XCircle className="w-4 h-4" /> Incorrect
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Option {option.labelIndex}</span>
+                        )
+                      ) : (
+                        <span className="text-slate-700 group-hover:text-teal-700">Option {option.labelIndex}</span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
+          {/* ANSWER FEEDBACK */}
           {isAnswered && (
             <div
-              className={`p-5 rounded-3xl text-xl font-extrabold transition-all ${
-                selectedOption === currentMember.name
-                  ? 'bg-emerald-100 text-emerald-950 border-2 border-emerald-400'
-                  : 'bg-indigo-100 text-indigo-950 border-2 border-indigo-400'
+              className={`p-6 rounded-3xl text-xl font-extrabold transition-all border-2 ${
+                selectedOption === quizPhotoOptions.find((o) => o.isCorrect)?.id
+                  ? 'bg-emerald-100 text-emerald-950 border-emerald-400'
+                  : 'bg-amber-100 text-amber-950 border-amber-400'
               }`}
             >
-              {selectedOption === currentMember.name
-                ? `That's right! This is ${currentMember.name}. (${currentMember.relationship})`
-                : `That's okay. Let's try again. This is ${currentMember.name} (${currentMember.relationship}).`}
+              {selectedOption === quizPhotoOptions.find((o) => o.isCorrect)?.id
+                ? `🎉 That's right! This is your ${currentMember.relationship}, ${currentMember.name}!`
+                : ` That's okay. Option ${quizPhotoOptions.find((o) => o.isCorrect)?.labelIndex} is your ${currentMember.relationship}, ${currentMember.name}.`}
             </div>
           )}
         </Card>
