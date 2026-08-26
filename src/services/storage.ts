@@ -306,38 +306,72 @@ export async function deleteFamilyMember(id: string): Promise<void> {
   localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(filtered));
 }
 
-export async function uploadFamilyPhoto(fileOrDataUrl: File | string): Promise<string> {
-  if (typeof fileOrDataUrl === 'string') {
-    if (isFirebaseConfigured && storage) {
-      try {
-        const fileRef = ref(storage, `family_photos/${Date.now()}.jpg`);
-        await uploadString(fileRef, fileOrDataUrl, 'data_url');
-        return await getDownloadURL(fileRef);
-      } catch (e) {
-        console.warn('Firebase storage upload failed', e);
-      }
+export function compressImage(dataUrl: string, maxWidth = 600, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith('data:image')) {
+      resolve(dataUrl);
+      return;
     }
-    return fileOrDataUrl;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxWidth) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxWidth) / height);
+            height = maxWidth;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve(dataUrl);
+        }
+      } catch (e) {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+export async function uploadFamilyPhoto(fileOrDataUrl: File | string): Promise<string> {
+  let dataUrl = typeof fileOrDataUrl === 'string' ? fileOrDataUrl : '';
+  if (typeof fileOrDataUrl !== 'string') {
+    dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(fileOrDataUrl);
+    });
   }
 
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      if (isFirebaseConfigured && storage) {
-        try {
-          const fileRef = ref(storage, `family_photos/${Date.now()}_${fileOrDataUrl.name}`);
-          await uploadString(fileRef, dataUrl, 'data_url');
-          const downloadUrl = await getDownloadURL(fileRef);
-          resolve(downloadUrl);
-          return;
-        } catch (e) {
-          console.warn('Firebase storage upload failed', e);
-        }
-      }
-      resolve(dataUrl);
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(fileOrDataUrl);
-  });
+  // Compress photo before uploading/saving to stay well below Firestore's 1MB limit
+  const compressed = await compressImage(dataUrl, 600, 0.75);
+
+  if (isFirebaseConfigured && storage) {
+    try {
+      const fileRef = ref(storage, `family_photos/${Date.now()}_${Math.random().toString(36).substring(2, 6)}.jpg`);
+      const uploadPromise = uploadString(fileRef, compressed, 'data_url').then(() => getDownloadURL(fileRef));
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Firebase Storage timeout')), 3500)
+      );
+
+      return await Promise.race([uploadPromise, timeoutPromise]);
+    } catch (e) {
+      console.warn('Firebase storage upload fallback to compressed image:', e);
+    }
+  }
+
+  return compressed;
 }
