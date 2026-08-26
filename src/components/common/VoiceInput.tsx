@@ -86,7 +86,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
         setErrorMessage('');
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         let finalText = '';
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i];
