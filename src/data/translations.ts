@@ -1554,10 +1554,10 @@ export interface NavigationCommand {
 export const GLOBAL_NAVIGATION_COMMANDS: NavigationCommand[] = [
   {
     keywords: [
-      'home', 'dashboard', 'main', 'start',
-      'முகப்பு', 'ஹோம்', 'ஆரம்பம்',
+      'home', 'dashboard', 'main dashboard', 'patient home', 'go home',
+      'முகப்பு', 'ஹோம்',
       'होम', 'मुख्य', 'डैशबोर्ड', 'गृह',
-      'హోమ్', 'ಮುಖಪುಟ', 'ഹോം', 'হোম', 'ઘર', 'ਹੋਮ'
+      'హోమ్', 'ಮುಖಪುಟ', 'ഹോം', 'হোম', 'ઘર'
     ],
     route: '/patient/dashboard',
   },

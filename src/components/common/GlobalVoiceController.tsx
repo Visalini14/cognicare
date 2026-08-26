@@ -69,7 +69,50 @@ export const GlobalVoiceController: React.FC = () => {
       return;
     }
 
-    // 6. Navigation route match
+    // 6. Start Activity / Start Match command
+    if (
+      spoken.includes('start activity') ||
+      spoken.includes('start match') ||
+      spoken.includes('start game') ||
+      spoken.includes('start') ||
+      spoken.includes('begin') ||
+      spoken.includes('விளையாட்டைத் தொடங்கு') ||
+      spoken.includes('தொடங்கு')
+    ) {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const startBtn = buttons.find((b) => {
+        const text = (b.textContent || '').toLowerCase();
+        return text.includes('start') || text.includes('begin') || text.includes('தொடங்கு');
+      });
+
+      if (startBtn) {
+        setFeedback('Starting Activity...');
+        speakText('Starting activity');
+        (startBtn as HTMLButtonElement).click();
+        return;
+      }
+    }
+
+    // 7. Back / Go Back command
+    if (spoken === 'back' || spoken.includes('go back') || spoken.includes('திரும்பிச் செல்')) {
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const backBtn = buttons.find((b) => {
+        const text = (b.textContent || '').toLowerCase();
+        return text === 'back' || text.includes('back to') || text.includes('cancel');
+      });
+
+      if (backBtn) {
+        setFeedback('Going Back...');
+        speakText('Going back');
+        (backBtn as HTMLButtonElement).click();
+        return;
+      } else {
+        navigate(-1);
+        return;
+      }
+    }
+
+    // 8. Navigation route match
     let matchedRoute: string | null = null;
     for (const cmd of GLOBAL_NAVIGATION_COMMANDS) {
       if (cmd.keywords.some((kw) => spoken.includes(kw.toLowerCase()))) {
