@@ -136,7 +136,11 @@ seedDemoData();
 
 export async function saveUserProfile(user: UserProfile): Promise<void> {
   if (isFirebaseConfigured && db) {
-    await setDoc(doc(db, 'users', user.uid), user);
+    try {
+      await setDoc(doc(db, 'users', user.uid), user);
+    } catch (e) {
+      console.error('Firestore user profile save failed:', e);
+    }
   }
   const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
   users[user.uid] = user;
