@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/common/Navbar';
 import { LoadingState } from '../components/common/UIComponents';
 import { VoiceGuidanceBar } from '../components/common/VoiceGuidanceBar';
+import { GlobalVoiceController } from '../components/common/GlobalVoiceController';
 import { LanguageSelector } from '../components/common/LanguageSelector';
 import { Sun, Moon, Brain } from 'lucide-react';
 
@@ -39,6 +40,7 @@ const AppLayout: React.FC = () => {
         CogniCare Platform • SIH 2026 Problem Statement PS 26003 Demo Application
       </footer>
       <VoiceGuidanceBar />
+      <GlobalVoiceController />
     </div>
   );
 };
@@ -75,6 +77,7 @@ const PublicLayout: React.FC = () => {
         <Outlet />
       </main>
       <VoiceGuidanceBar />
+      <GlobalVoiceController />
     </div>
   );
 };

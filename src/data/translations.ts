@@ -1633,4 +1633,24 @@ export const GLOBAL_NAVIGATION_COMMANDS: NavigationCommand[] = [
     ],
     route: '/caregiver/dashboard',
   },
+  {
+    keywords: ['family members', 'family manager', 'manage family', 'caregiver family', 'குடும்ப உறுப்பினர்கள்', 'உறுப்பினர்கள்'],
+    route: '/caregiver/family-members',
+  },
+  {
+    keywords: ['activity log', 'logs', 'audit log', 'activity audit', 'செயல்பாட்டுப் பதிவுகள்', 'பதிவுகள்'],
+    route: '/caregiver/activity',
+  },
+  {
+    keywords: ['analytics', 'patient analytics', 'patient progress', 'caregiver analytics', 'நோயாளி பகுப்பாய்வு', 'பகுப்பாய்வு'],
+    route: '/caregiver/progress',
+  },
+  {
+    keywords: ['login', 'sign in', 'உள்நுழை', 'லாகின்'],
+    route: '/login',
+  },
+  {
+    keywords: ['signup', 'sign up', 'register', 'create account', 'பதிவு'],
+    route: '/signup',
+  },
 ];
