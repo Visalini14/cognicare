@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { GLOBAL_NAVIGATION_COMMANDS } from '../../data/translations';
-import { Mic, Volume2, X } from 'lucide-react';
+import { Mic, MicOff, Volume2, X } from 'lucide-react';
 
 export const GlobalVoiceController: React.FC = () => {
   const { logout, toggleHighContrast } = useAuth();
@@ -23,10 +23,20 @@ export const GlobalVoiceController: React.FC = () => {
   const recognitionRef = useRef<any>(null);
   const restartTimerRef = useRef<any>(null);
 
-  // Sync state changes with localStorage
+  // Sync state changes with localStorage and listen for custom Navbar toggle event
   useEffect(() => {
     localStorage.setItem('cognicare_global_voice_active', String(isActive));
   }, [isActive]);
+
+  useEffect(() => {
+    const handleSync = () => {
+      const currentVal = localStorage.getItem('cognicare_global_voice_active') === 'true';
+      setIsActive(currentVal);
+    };
+
+    window.addEventListener('cognicare_voice_toggle', handleSync);
+    return () => window.removeEventListener('cognicare_voice_toggle', handleSync);
+  }, []);
 
   const handleGlobalCommand = (spokenRaw: string) => {
     const spoken = spokenRaw.toLowerCase().trim();
@@ -214,7 +224,44 @@ export const GlobalVoiceController: React.FC = () => {
     };
   }, [isActive, languageInfo, location.pathname]);
 
-  if (!isActive) return null;
+  if (!isActive) {
+    return (
+      <div className="fixed bottom-4 right-4 z-50 transition-all">
+        {minimized ? (
+          <button
+            onClick={() => setMinimized(false)}
+            className="bg-slate-800 text-slate-300 p-3 rounded-full shadow-xl flex items-center gap-2 border border-slate-600 hover:bg-slate-700 cursor-pointer"
+            title="Voice Control OFF — Click to expand"
+          >
+            <MicOff className="w-5 h-5 text-slate-400" />
+            <span className="text-xs font-bold uppercase tracking-wider pr-1">Voice OFF</span>
+          </button>
+        ) : (
+          <div className="bg-slate-900/90 backdrop-blur-md text-white p-3.5 rounded-3xl shadow-xl border border-slate-700 max-w-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-2xl bg-slate-800 flex items-center justify-center border border-slate-700 shrink-0">
+                <MicOff className="w-4 h-4 text-slate-400" />
+              </div>
+              <div>
+                <span className="font-extrabold text-xs text-slate-300 uppercase tracking-wider block">Hands-Free Voice OFF</span>
+                <span className="text-[11px] text-slate-400 block">Click Turn ON to enable</span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setIsActive(true);
+                localStorage.setItem('cognicare_global_voice_active', 'true');
+                window.dispatchEvent(new Event('cognicare_voice_toggle'));
+              }}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md cursor-pointer transition-colors shrink-0"
+            >
+              Turn ON
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed bottom-4 right-4 z-50 transition-all">
