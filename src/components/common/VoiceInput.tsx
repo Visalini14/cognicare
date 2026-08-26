@@ -33,7 +33,16 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    // Detect Web Speech API availability
+    // Detect Web Speech API availability across Chrome, Edge, Safari, Brave
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setIsSupported(false);
+    }
+  }, []);
+
+  const startListening = async () => {
+    if (disabled) return;
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setIsSupported(false);
@@ -41,25 +50,56 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
     }
 
     try {
+      stopSpeech();
+      setTranscript('');
+      setErrorMessage('');
+      setStatus('listening');
+
+      // 1. Request microphone permission explicitly to trigger browser permission dialog if needed
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          stream.getTracks().forEach((t) => t.stop());
+        } catch (permErr: any) {
+          if (permErr.name === 'NotAllowedError' || permErr.name === 'PermissionDeniedError') {
+            setStatus('permission_denied');
+            setErrorMessage('Microphone access is blocked by your browser. Click the lock/mic icon in your address bar to allow microphone access.');
+            return;
+          }
+        }
+      }
+
+      // 2. Abort previous instance if active
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+
       const recognition = new SpeechRecognition();
       recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = languageInfo.speechTag;
+      recognition.interimResults = true; // Live preview while speaking!
+      recognition.lang = languageInfo.speechTag || 'en-US';
 
       recognition.onstart = () => {
         setStatus('listening');
         setErrorMessage('');
       };
 
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        setStatus('processing');
-        const text = event.results[0][0].transcript;
-        if (text && text.trim().length > 0) {
-          setTranscript(text.trim());
+      recognition.onresult = (event: any) => {
+        let finalText = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            finalText += res[0].transcript;
+          } else {
+            setTranscript(res[0].transcript); // Live preview
+          }
+        }
+
+        if (finalText && finalText.trim().length > 0) {
+          setTranscript(finalText.trim());
           setStatus('success');
-        } else {
-          setStatus('error');
-          setErrorMessage("We couldn't hear that clearly. Please try again.");
         }
       };
 
@@ -67,60 +107,36 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
         console.warn('Speech recognition error:', event.error);
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           setStatus('permission_denied');
-          setErrorMessage('Microphone access is unavailable. You can use the buttons instead.');
+          setErrorMessage('Microphone permission is blocked in browser settings. Please allow microphone access in your address bar.');
         } else if (event.error === 'no-speech') {
           setStatus('error');
-          setErrorMessage("We couldn't hear any speech. Please try again.");
+          setErrorMessage("No speech was detected. Tap the microphone button and try speaking again.");
+        } else if (event.error === 'aborted') {
+          // Handled explicitly on user cancel
         } else {
           setStatus('error');
-          setErrorMessage("Speech recognition encountered an issue. Please try again or tap an answer button.");
+          setErrorMessage("Speech recognition encountered an issue. Tap to try again or use the answer buttons.");
         }
       };
 
       recognition.onend = () => {
-        // If still listening without result, reset to idle/error
-        setStatus(prev => (prev === 'listening' || prev === 'processing' ? 'error' : prev));
+        setStatus((prev) => (prev === 'listening' ? 'idle' : prev));
       };
 
       recognitionRef.current = recognition;
-    } catch (e) {
-      console.warn('Speech Recognition initialization error', e);
-      setIsSupported(false);
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch (e) {
-          // ignore cleanup abort errors
-        }
-      }
-    };
-  }, [languageInfo]);
-
-  const startListening = () => {
-    if (!isSupported || !recognitionRef.current || disabled) return;
-    try {
-      stopSpeech();
-      recognitionRef.current.lang = languageInfo.speechTag;
-      setTranscript('');
-      setStatus('listening');
-      recognitionRef.current.start();
+      recognition.start();
     } catch (e) {
       console.warn('Start speech error', e);
       setStatus('error');
-      setErrorMessage("Could not start microphone. Please try tapping an answer button.");
+      setErrorMessage("Could not access microphone. Please tap an answer button instead.");
     }
   };
 
   const stopListening = () => {
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // ignore
-      }
+        recognitionRef.current.abort();
+      } catch (e) {}
     }
     setStatus('idle');
   };
