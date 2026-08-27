@@ -391,27 +391,42 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
 
     setCameraStatus('recognizing');
 
-    // Step 1: Detect Face & Extract 128D Neural Net Descriptor
-    const detection = await extractFaceEmbeddingFromSource(videoRef.current);
+    try {
+      // 1. Wrap neural network extraction in a 4.5s timeout safety guard
+      const timeoutPromise = new Promise<{ hasFace: boolean; faceCount: number; reason?: any; embedding?: number[]; confidence?: number }>((resolve) => {
+        setTimeout(() => {
+          resolve({ hasFace: false, faceCount: 0, reason: 'no_face' });
+        }, 4500);
+      });
 
-    if (!detection.hasFace || !detection.embedding) {
+      // 2. Extract 128D Neural Net Descriptor with Canvas snapshot
+      const detection = await Promise.race([
+        extractFaceEmbeddingFromSource(videoRef.current),
+        timeoutPromise,
+      ]);
+
+      if (!detection.hasFace || !detection.embedding) {
+        setCameraStatus('no_face');
+        return;
+      }
+
+      if (detection.faceCount > 1) {
+        setCameraStatus('multiple_faces');
+        return;
+      }
+
+      // 3. Compare 128D Neural Network Descriptor against Registered Family Members (Euclidean Distance <= 0.48)
+      const match = matchLiveFaceToFamily(detection.embedding, familyMembers, 0.48);
+
+      setMatchedResult(match);
+      if (match.status === 'recognized') {
+        setCameraStatus('recognized');
+      } else {
+        setCameraStatus('unrecognized');
+      }
+    } catch (err) {
+      console.error('Recognition error:', err);
       setCameraStatus('no_face');
-      return;
-    }
-
-    if (detection.faceCount > 1) {
-      setCameraStatus('multiple_faces');
-      return;
-    }
-
-    // Step 2: Compare 128D Neural Network Descriptor against Registered Family Members (Euclidean Distance <= 0.48)
-    const match = matchLiveFaceToFamily(detection.embedding, familyMembers, 0.48);
-
-    setMatchedResult(match);
-    if (match.status === 'recognized') {
-      setCameraStatus('recognized');
-    } else {
-      setCameraStatus('unrecognized');
     }
   };
 

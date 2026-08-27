@@ -87,15 +87,42 @@ export async function initializeFaceRecognitionModels(): Promise<boolean> {
  * 1. Detects face using SsdMobilenetv1 / TinyFaceDetector
  * 2. Aligns face landmarks using FaceLandmark68Net
  * 3. Computes 128D neural network face descriptor using FaceRecognitionNet
+/**
+ * Converts live HTMLVideoElement to a 2D HTMLCanvasElement snapshot.
+ * Prevents WebGL canvas texture locks in Chrome/Vite.
+ */
+export function captureCanvasFromVideo(source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement): HTMLCanvasElement | HTMLImageElement | HTMLVideoElement {
+  if (source instanceof HTMLVideoElement) {
+    if (source.videoWidth === 0 || source.videoHeight === 0) return source;
+    const canvas = document.createElement('canvas');
+    canvas.width = source.videoWidth;
+    canvas.height = source.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    }
+  }
+  return source;
+}
+
+/**
+ * Executes PRETRAINED NEURAL NETWORK INFERENCE on an HTML Image, Video, or Canvas element.
+ * 1. Converts video source to canvas snapshot
+ * 2. Uses TinyFaceDetector first for fast inference (~30-50ms)
+ * 3. Aligns face landmarks using FaceLandmark68Net
+ * 4. Computes 128D neural network face descriptor using FaceRecognitionNet
  */
 export async function extractFaceEmbeddingFromSource(
-  source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
+  rawSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
 ): Promise<FaceDetectionResult> {
   try {
     const isReady = await initializeFaceRecognitionModels();
     if (!isReady) {
       return { hasFace: false, faceCount: 0, reason: 'no_face' };
     }
+
+    const source = captureCanvasFromVideo(rawSource);
 
     let width = 0;
     let height = 0;
@@ -115,27 +142,31 @@ export async function extractFaceEmbeddingFromSource(
       return { hasFace: false, faceCount: 0, reason: 'no_face' };
     }
 
-    // Try SsdMobilenetv1 high-accuracy detector first
     let detections: any[] = [];
 
+    // Try TinyFaceDetector first (fastest and most reliable for real-time video)
     try {
       detections = await faceapi
-        .detectAllFaces(source, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.30 }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-    } catch (e) {
-      // Fall back to TinyFaceDetector
-      detections = await faceapi
-        .detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.25 }))
+        .detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.20 }))
         .withFaceLandmarks(true)
         .withFaceDescriptors();
+    } catch (e) {
+      // Fallback to SsdMobilenetv1
+      try {
+        detections = await faceapi
+          .detectAllFaces(source, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.25 }))
+          .withFaceLandmarks()
+          .withFaceDescriptors();
+      } catch (err) {
+        // ignore
+      }
     }
 
     if (!detections || detections.length === 0) {
-      // Secondary fallback attempt with TinyFaceDetector
+      // Secondary attempt with smaller input size
       try {
         detections = await faceapi
-          .detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.20 }))
+          .detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 }))
           .withFaceLandmarks(true)
           .withFaceDescriptors();
       } catch (e) {
