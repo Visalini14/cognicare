@@ -243,16 +243,77 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
     if (isAnswered) return;
 
     const cleanSpoken = spokenText.toLowerCase().replace(/[^\w\s]/gi, '').trim();
+    if (!cleanSpoken) return;
 
-    const matchedOption = displayOptions.find(opt => {
-      const cleanOpt = opt.toLowerCase().trim();
-      return cleanSpoken === cleanOpt || cleanSpoken.includes(cleanOpt) || cleanOpt.includes(cleanSpoken);
-    });
+    let matchedOption: string | undefined;
+
+    // 1. Check for option index match ("option 1", "first", "choice 1", "1", etc.)
+    const optionIndices = [
+      ['1', 'one', 'first', 'option 1', 'choice 1'],
+      ['2', 'two', 'second', 'option 2', 'choice 2'],
+      ['3', 'three', 'third', 'option 3', 'choice 3'],
+      ['4', 'four', 'fourth', 'option 4', 'choice 4'],
+    ];
+
+    for (let idx = 0; idx < displayOptions.length; idx++) {
+      const aliases = optionIndices[idx] || [];
+      if (aliases.some((alias) => cleanSpoken === alias || cleanSpoken.includes(alias))) {
+        matchedOption = displayOptions[idx];
+        break;
+      }
+    }
+
+    // 2. Direct string, token, and synonym matching if option index was not spoken
+    if (!matchedOption) {
+      const synonyms: Record<string, string[]> = {
+        'apple': ['apple', 'fruit', 'red apple'],
+        'cup': ['cup', 'mug', 'tea', 'coffee', 'glass'],
+        'spoon': ['spoon', 'utensil'],
+        'book': ['book', 'notebook', 'read', 'story'],
+        'phone': ['phone', 'mobile', 'cellphone', 'telephone', 'call'],
+        'chair': ['chair', 'seat', 'stool'],
+        'clock': ['clock', 'time', 'watch'],
+        'key': ['key', 'lock'],
+        'toothbrush': ['toothbrush', 'brush', 'teeth'],
+        'water bottle': ['bottle', 'water', 'water bottle'],
+        'brushing teeth': ['brushing', 'brush', 'teeth', 'tooth'],
+        'drinking water': ['drinking', 'drink', 'water'],
+        'eating meals': ['eating', 'eat', 'food', 'meal', 'meals'],
+        'sleeping': ['sleeping', 'sleep', 'bed'],
+        'taking a walk': ['walking', 'walk', 'stroll'],
+      };
+
+      for (const opt of displayOptions) {
+        const cleanOpt = opt.toLowerCase().trim();
+
+        // Direct equality or substring match
+        if (cleanSpoken === cleanOpt || cleanSpoken.includes(cleanOpt) || cleanOpt.includes(cleanSpoken)) {
+          matchedOption = opt;
+          break;
+        }
+
+        // Token match (e.g., "bottle" matching "Water bottle")
+        const optWords = cleanOpt.split(/\s+/);
+        const spokenWords = cleanSpoken.split(/\s+/);
+
+        if (spokenWords.some((sw) => sw.length >= 3 && optWords.some((ow) => ow.includes(sw) || sw.includes(ow)))) {
+          matchedOption = opt;
+          break;
+        }
+
+        // Synonym match
+        const synList = synonyms[cleanOpt] || [];
+        if (synList.some((syn) => cleanSpoken.includes(syn))) {
+          matchedOption = opt;
+          break;
+        }
+      }
+    }
 
     if (matchedOption) {
       handleSelectOption(matchedOption, 'voice');
     } else {
-      setVoiceNotice(`I couldn't match "${spokenText}". Please try speaking again or tap a button choice.`);
+      setVoiceNotice(`I heard "${spokenText}". Say "Option 1", "Option 2", or tap an answer button.`);
     }
   };
 
@@ -419,7 +480,18 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
                   disabled={isAnswered}
                   className={`p-5 sm:p-6 rounded-3xl font-extrabold text-2xl transition-all flex items-center justify-between min-h-[72px] cursor-pointer ${btnStyle}`}
                 >
-                  <span>{opt}</span>
+                  <div className="flex items-center gap-3">
+                    <span className={`w-8 h-8 rounded-full text-sm font-black flex items-center justify-center border shrink-0 ${
+                      isAnswered && isCorrect
+                        ? 'bg-emerald-700 text-white border-emerald-500'
+                        : isAnswered && isSelected
+                        ? 'bg-rose-700 text-white border-rose-500'
+                        : 'bg-slate-100 text-slate-700 border-slate-300'
+                    }`}>
+                      {idx + 1}
+                    </span>
+                    <span>{opt}</span>
+                  </div>
                   {isAnswered && isCorrect && <CheckCircle2 className="w-8 h-8 text-white" />}
                   {isAnswered && isSelected && !isCorrect && <XCircle className="w-8 h-8 text-white" />}
                 </button>

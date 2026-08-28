@@ -7,6 +7,7 @@ interface VoiceInputProps {
   onConfirmAnswer: (spokenText: string) => void;
   disabled?: boolean;
   promptText?: string;
+  autoSubmit?: boolean;
 }
 
 // Web Speech API interface declarations
@@ -23,6 +24,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   onConfirmAnswer,
   disabled = false,
   promptText = 'Speak your answer',
+  autoSubmit = true,
 }) => {
   const { languageInfo, stopSpeech } = useLanguage();
   const [isSupported, setIsSupported] = useState<boolean>(true);
@@ -31,6 +33,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
 
   const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef<string>('');
 
   useEffect(() => {
     // Detect Web Speech API availability across Chrome, Edge, Safari, Brave
@@ -52,6 +55,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
     try {
       stopSpeech();
       setTranscript('');
+      transcriptRef.current = '';
       setErrorMessage('');
       setStatus('listening');
 
@@ -87,19 +91,24 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
       };
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let finalText = '';
+        let text = '';
         for (let i = 0; i < event.results.length; i++) {
-          const res = event.results[i];
-          if (res.isFinal) {
-            finalText += res[0].transcript;
-          } else {
-            setTranscript(res[0].transcript); // Live preview
-          }
+          text += event.results[i][0].transcript;
         }
 
-        if (finalText && finalText.trim().length > 0) {
-          setTranscript(finalText.trim());
-          setStatus('success');
+        const trimmed = text.trim();
+        if (trimmed) {
+          setTranscript(trimmed);
+          transcriptRef.current = trimmed;
+
+          if (autoSubmit) {
+            setStatus('processing');
+            // Auto submit immediately!
+            setTimeout(() => {
+              onConfirmAnswer(trimmed);
+              setStatus('idle');
+            }, 300);
+          }
         }
       };
 
@@ -120,7 +129,12 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
       };
 
       recognition.onend = () => {
-        setStatus((prev) => (prev === 'listening' ? 'idle' : prev));
+        if (transcriptRef.current && autoSubmit) {
+          onConfirmAnswer(transcriptRef.current);
+          setTranscript('');
+          transcriptRef.current = '';
+        }
+        setStatus('idle');
       };
 
       recognitionRef.current = recognition;
