@@ -18,9 +18,7 @@ import {
   Gamepad2,
   BarChart3,
   Award,
-  Home,
-  Mic,
-  MicOff
+  Home
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -54,18 +52,6 @@ export const Navbar: React.FC = () => {
   ];
 
   const navLinks = isPatient ? patientLinks : caregiverLinks;
-
-  const [isVoiceActive, setIsVoiceActive] = useState<boolean>(() => {
-    return localStorage.getItem('cognicare_global_voice_active') === 'true';
-  });
-
-  const toggleGlobalVoice = () => {
-    const next = !isVoiceActive;
-    setIsVoiceActive(next);
-    localStorage.setItem('cognicare_global_voice_active', String(next));
-    // Trigger custom event so GlobalVoiceController picks it up instantly
-    window.dispatchEvent(new Event('cognicare_voice_toggle'));
-  };
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b-2 border-slate-200 shadow-sm">
@@ -108,22 +94,8 @@ export const Navbar: React.FC = () => {
             })}
           </nav>
 
-          {/* SECONDARY CONTROLS (VOICE CONTROL, LANGUAGE, PROFILE, HIGH CONTRAST & LOGOUT) */}
+          {/* SECONDARY CONTROLS (LANGUAGE, PROFILE, HIGH CONTRAST & LOGOUT) */}
           <div className="hidden md:flex items-center gap-3">
-            {/* VOICE CONTROL HANDS-FREE TOGGLE */}
-            <button
-              onClick={toggleGlobalVoice}
-              title={isVoiceActive ? 'Voice Control Active (Click to Mute)' : 'Enable Hands-Free Voice Control'}
-              className={`px-3.5 py-2.5 rounded-2xl border-2 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all ${
-                isVoiceActive
-                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-md animate-pulse'
-                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              {isVoiceActive ? <Mic className="w-4 h-4 text-white" /> : <MicOff className="w-4 h-4 text-slate-400" />}
-              <span>{isVoiceActive ? 'Voice: ON' : 'Voice: OFF'}</span>
-            </button>
-
             {/* LANGUAGE SELECTOR */}
             <LanguageSelector />
 
