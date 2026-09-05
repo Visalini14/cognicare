@@ -1,4 +1,5 @@
 export type UserRole = 'patient' | 'caregiver';
+export type DeviceMode = 'shared' | 'separate';
 
 export interface UserProfile {
   uid: string;
@@ -8,6 +9,45 @@ export interface UserProfile {
   createdAt: string;
   patientId?: string;   // For caregivers: the linked patient UID
   patientName?: string; // Cache of linked patient name
+  deviceMode?: DeviceMode; // 'shared' (default) vs 'separate'
+}
+
+export type ReminderCategory = 'medicine' | 'hydration' | 'activity' | 'appointment';
+export type ReminderFrequency = 'once' | 'daily';
+export type ReminderStatus = 'pending' | 'completed' | 'escalated' | 'missed';
+
+export interface Reminder {
+  id: string;
+  caregiverId: string;
+  patientId: string;
+  patientName?: string;
+  type: ReminderCategory;
+  title: string;
+  time: string;               // e.g. "09:00" or "09:00 AM"
+  note?: string;
+  frequency: ReminderFrequency;
+  deviceMode: DeviceMode;
+  status: ReminderStatus;
+  lastTriggeredAt?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+export type ActivityEventType =
+  | 'game_played'
+  | 'reminder_created'
+  | 'reminder_triggered'
+  | 'reminder_completed'
+  | 'reminder_escalated';
+
+export interface ActivityLogEntry {
+  id: string;
+  patientId: string;
+  patientName?: string;
+  eventType: ActivityEventType;
+  title: string;
+  details: string;
+  timestamp: string;
 }
 
 export type GameType = 'memory-match' | 'pattern-recall' | 'recognition-quiz' | 'family-recognition';

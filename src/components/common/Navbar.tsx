@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -18,8 +18,10 @@ import {
   Gamepad2,
   BarChart3,
   Award,
-  Home
+  Home,
+  Bell
 } from 'lucide-react';
+import { getReminders } from '../../services/storage';
 
 export const Navbar: React.FC = () => {
   const { user, logout, highContrastMode, toggleHighContrast } = useAuth();
@@ -52,6 +54,21 @@ export const Navbar: React.FC = () => {
   ];
 
   const navLinks = isPatient ? patientLinks : caregiverLinks;
+
+  const [pendingRemindersCount, setPendingRemindersCount] = useState<number>(0);
+
+  const targetPatientId = isPatient ? user?.uid || 'patient-1' : user?.patientId || 'patient-1';
+
+  useEffect(() => {
+    async function loadReminderCount() {
+      const list = await getReminders(targetPatientId);
+      const pending = list.filter((r) => r.status !== 'completed');
+      setPendingRemindersCount(pending.length);
+    }
+    loadReminderCount();
+    const interval = setInterval(loadReminderCount, 10000);
+    return () => clearInterval(interval);
+  }, [targetPatientId, isPatient]);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b-2 border-slate-200 shadow-sm">
@@ -94,8 +111,22 @@ export const Navbar: React.FC = () => {
             })}
           </nav>
 
-          {/* SECONDARY CONTROLS (LANGUAGE, PROFILE, HIGH CONTRAST & LOGOUT) */}
+          {/* SECONDARY CONTROLS (REMINDERS BELL, LANGUAGE, PROFILE, HIGH CONTRAST & LOGOUT) */}
           <div className="hidden md:flex items-center gap-3">
+            {/* REMINDERS BELL NOTIFICATION ICON WITH BADGE COUNT */}
+            <Link
+              to={isPatient ? '/patient/dashboard' : '/caregiver/reminders'}
+              title="Reminders & Schedules"
+              className="relative p-3 rounded-2xl border-2 border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors font-bold flex items-center justify-center cursor-pointer"
+            >
+              <Bell className="w-5 h-5 text-slate-700" />
+              {pendingRemindersCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[11px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-md animate-pulse border-2 border-white">
+                  {pendingRemindersCount}
+                </span>
+              )}
+            </Link>
+
             {/* LANGUAGE SELECTOR */}
             <LanguageSelector />
 

@@ -23,10 +23,12 @@ import { FamilyRecognitionGame } from '../games/family-recognition/FamilyRecogni
 
 // Caregiver Pages
 import { CaregiverDashboard } from '../pages/caregiver/CaregiverDashboard';
+import { CaregiverReminders } from '../pages/caregiver/CaregiverReminders';
 import { FamilyMembersManager } from '../pages/caregiver/FamilyMembersManager';
 import { PatientProgressDetail } from '../pages/caregiver/PatientProgressDetail';
 import { ActivityLog } from '../pages/caregiver/ActivityLog';
 import { CaregiverProfile } from '../pages/caregiver/CaregiverProfile';
+import { ReminderDeliveryManager } from '../components/common/ReminderDeliveryManager';
 
 const AppLayout: React.FC = () => {
   const { highContrastMode } = useAuth();
@@ -41,6 +43,7 @@ const AppLayout: React.FC = () => {
       </footer>
       <VoiceGuidanceBar />
       <GlobalVoiceController />
+      <ReminderDeliveryManager />
     </div>
   );
 };
@@ -129,6 +132,7 @@ export const AppRoutes: React.FC = () => {
       <Route element={<ProtectedRoute allowedRole="caregiver" />}>
         <Route element={<AppLayout />}>
           <Route path="/caregiver/dashboard" element={<CaregiverDashboard />} />
+          <Route path="/caregiver/reminders" element={<CaregiverReminders />} />
           <Route path="/caregiver/progress" element={<PatientProgressDetail />} />
           <Route path="/caregiver/family-members" element={<FamilyMembersManager />} />
           <Route path="/caregiver/activity" element={<ActivityLog />} />

@@ -13,7 +13,8 @@ import {
   Users,
   BarChart2,
   PieChart,
-  UserCheck
+  UserCheck,
+  Bell
 } from 'lucide-react';
 import {
   LineChart,
@@ -137,6 +138,14 @@ export const CaregiverDashboard: React.FC = () => {
               </select>
             </div>
           )}
+
+          <Link
+            to="/caregiver/reminders"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-teal-700 hover:bg-teal-800 text-white rounded-2xl font-bold text-sm shadow-lg shadow-teal-700/20 transition-all"
+          >
+            <Bell className="w-4 h-4" />
+            Reminders & Schedule
+          </Link>
 
           <Link
             to="/caregiver/family-members"
