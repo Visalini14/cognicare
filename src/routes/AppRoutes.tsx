@@ -6,7 +6,7 @@ import { LoadingState } from '../components/common/UIComponents';
 import { VoiceGuidanceBar } from '../components/common/VoiceGuidanceBar';
 import { GlobalVoiceController } from '../components/common/GlobalVoiceController';
 import { LanguageSelector } from '../components/common/LanguageSelector';
-import { Sun, Moon, Brain } from 'lucide-react';
+import { Brain } from 'lucide-react';
 
 // Auth Pages
 import { LoginPage } from '../pages/auth/LoginPage';
@@ -49,7 +49,7 @@ const AppLayout: React.FC = () => {
 };
 
 const PublicLayout: React.FC = () => {
-  const { highContrastMode, toggleHighContrast } = useAuth();
+  const { highContrastMode } = useAuth();
   return (
     <div className={`min-h-screen flex flex-col ${highContrastMode ? 'high-contrast' : 'bg-slate-50 text-slate-900'}`}>
       <header className="sticky top-0 z-40 bg-white border-b-2 border-slate-200 shadow-sm px-4 sm:px-8 py-3">
@@ -66,13 +66,6 @@ const PublicLayout: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <LanguageSelector />
-            <button
-              onClick={toggleHighContrast}
-              title="Toggle High Contrast Mode"
-              className="p-2.5 rounded-2xl border-2 border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
-            >
-              {highContrastMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5" />}
-            </button>
           </div>
         </div>
       </header>
