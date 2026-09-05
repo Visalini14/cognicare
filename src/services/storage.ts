@@ -542,9 +542,15 @@ export async function deleteReminder(id: string): Promise<void> {
   localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(filtered));
 }
 
-export async function updateReminderStatus(id: string, status: ReminderStatus, completedAt?: string): Promise<Reminder | null> {
-  const reminders = await getReminders();
-  const found = reminders.find((r) => r.id === id);
+export async function updateReminderStatus(id: string, status: ReminderStatus, completedAt?: string, patientId?: string): Promise<Reminder | null> {
+  const list: Reminder[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REMINDERS) || '[]');
+  let found = list.find((r) => r.id === id);
+
+  if (!found) {
+    const reminders = await getReminders(patientId);
+    found = reminders.find((r) => r.id === id);
+  }
+
   if (!found) return null;
 
   const updated: Reminder = {

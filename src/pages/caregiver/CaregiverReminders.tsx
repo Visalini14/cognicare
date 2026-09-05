@@ -37,6 +37,11 @@ export const CaregiverReminders: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(async () => {
+      const data = await getReminders(targetPatientId);
+      setReminders(data);
+    }, 3000);
+    return () => clearInterval(interval);
   }, [targetPatientId]);
 
   const handleDeviceModeChange = async (mode: DeviceMode) => {

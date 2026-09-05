@@ -132,7 +132,7 @@ export const ReminderDeliveryManager: React.FC = () => {
   // Handle Mark Done (Tap or Voice Confirmation)
   const handleMarkDone = async (reminder: Reminder) => {
     const pName = user?.patientName || patientProfile?.name || 'Aarav Sharma';
-    await updateReminderStatus(reminder.id, 'completed', new Date().toISOString());
+    await updateReminderStatus(reminder.id, 'completed', new Date().toISOString(), reminder.patientId);
 
     await saveActivityLogEntry({
       patientId: reminder.patientId,
