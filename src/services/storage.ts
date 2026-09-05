@@ -255,19 +255,35 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export async function getAllPatients(): Promise<UserProfile[]> {
+  const patientsMap = new Map<string, UserProfile>();
+
+  // 1. Load local patient accounts (demo accounts + local signups)
+  const usersObj: Record<string, UserProfile> = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
+  Object.values(usersObj).forEach((u) => {
+    if (u && u.role === 'patient') {
+      patientsMap.set(u.uid, u);
+    }
+  });
+
+  // 2. Fetch remote Firestore patient accounts if Firebase is configured
   if (isFirebaseConfigured && db) {
     try {
       const q = query(collection(db, 'users'), where('role', '==', 'patient'));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        return snap.docs.map((doc) => doc.data() as UserProfile);
+        snap.docs.forEach((docSnap) => {
+          const data = docSnap.data() as UserProfile;
+          if (data && data.role === 'patient') {
+            patientsMap.set(data.uid, data);
+          }
+        });
       }
     } catch (e) {
       console.warn('Firestore get all patients failed', e);
     }
   }
-  const usersObj: Record<string, UserProfile> = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
-  return Object.values(usersObj).filter((u) => u.role === 'patient');
+
+  return Array.from(patientsMap.values());
 }
 
 export async function updateUserPatientLink(caregiverUid: string, patientId: string, patientName: string): Promise<UserProfile | null> {
