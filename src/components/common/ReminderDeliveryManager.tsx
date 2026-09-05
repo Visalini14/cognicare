@@ -54,6 +54,8 @@ export const ReminderDeliveryManager: React.FC = () => {
 
         const reminderTime = (r.time || '').trim();
         const rTimeUpper = reminderTime.toUpperCase();
+        const isSharedMode = (r.deviceMode || 'shared') === 'shared';
+        const currentUserRole = user?.role || 'patient';
 
         // Check time match (supports both 24-hr "09:00" and 12-hr "09:00 AM")
         const isTimeMatch =
@@ -69,10 +71,10 @@ export const ReminderDeliveryManager: React.FC = () => {
           r.lastTriggeredAt = todayStr;
 
           const pName = user?.patientName || patientProfile?.name || 'Aarav Sharma';
-          const phrasing = getReminderPhrasing(r, pName, user?.role || 'patient', false);
+          const phrasing = getReminderPhrasing(r, pName, currentUserRole, false);
 
           // Update trigger date in storage
-          await updateReminderStatus(r.id, 'pending');
+          await updateReminderStatus(r.id, 'pending', undefined, r.patientId);
 
           // Log Activity
           await saveActivityLogEntry({
@@ -80,27 +82,36 @@ export const ReminderDeliveryManager: React.FC = () => {
             patientName: pName,
             eventType: 'reminder_triggered',
             title: `${phrasing.categoryLabel} Reminder Triggered`,
-            details: `Scheduled ${r.title} triggered for ${pName} (${r.deviceMode === 'shared' ? 'Shared Device' : 'Separate Device'}).`,
+            details: `Scheduled ${r.title} triggered for ${pName} (${isSharedMode ? 'Shared Device' : 'Separate Device'}).`,
           });
 
-          // Fire Audio, Native Notification, and In-App Banner
-          sendNativeBrowserNotification(phrasing.title, phrasing.voiceLine);
-          speakText(phrasing.voiceLine);
-          setCurrentTriggered({ reminder: r, isEscalated: false });
-          break;
+          // DEVICE MODE RECIPIENT FILTER FOR SCHEDULED TRIGGER TIME:
+          // - Shared Device Mode: Alert ONLY on Caregiver account (caregiver handles phone)
+          // - Separate Device Mode: Alert ONLY on Patient account (patient has own device)
+          const shouldDeliverAtScheduledTime = isSharedMode
+            ? currentUserRole === 'caregiver'
+            : currentUserRole === 'patient';
+
+          if (shouldDeliverAtScheduledTime) {
+            sendNativeBrowserNotification(phrasing.title, phrasing.voiceLine);
+            speakText(phrasing.voiceLine);
+            setCurrentTriggered({ reminder: r, isEscalated: false });
+            break;
+          }
         }
 
-        // 2. CHECK 30-MINUTE ESCALATION WINDOW FOR PENDING REMINDERS
+        // 2. CHECK 5-MINUTE ESCALATION WINDOW FOR UNCONFIRMED REMINDERS
         if (r.lastTriggeredAt === todayStr && (r.status === 'pending' || r.status === 'escalated')) {
           const createdOrTriggeredTime = new Date(r.createdAt).getTime();
           const minsElapsed = (now.getTime() - createdOrTriggeredTime) / (1000 * 60);
 
-          if (minsElapsed >= 30 && r.status !== 'escalated') {
+          // Escalate to Caregiver after 5 minutes of no response
+          if (minsElapsed >= 5 && r.status !== 'escalated') {
             r.status = 'escalated';
-            await updateReminderStatus(r.id, 'escalated');
+            await updateReminderStatus(r.id, 'escalated', undefined, r.patientId);
 
             const pName = user?.patientName || patientProfile?.name || 'Aarav Sharma';
-            const phrasing = getReminderPhrasing(r, pName, user?.role || 'patient', true);
+            const phrasing = getReminderPhrasing(r, pName, currentUserRole, true);
 
             // Log Escalation Activity
             await saveActivityLogEntry({
@@ -108,13 +119,19 @@ export const ReminderDeliveryManager: React.FC = () => {
               patientName: pName,
               eventType: 'reminder_escalated',
               title: `⚠️ ${phrasing.categoryLabel} Reminder Escalated`,
-              details: `${pName} did not confirm ${r.title} within 30 minutes. Urgent alert sent to Caregiver.`,
+              details: `${pName} did not respond to ${r.title} within 5 minutes. Urgent alert sent to Caregiver.`,
             });
 
-            sendNativeBrowserNotification(phrasing.title, phrasing.voiceLine);
-            speakText(phrasing.voiceLine);
-            setCurrentTriggered({ reminder: r, isEscalated: true });
-            break;
+            // ESCALATION RECIPIENT FILTER:
+            // Urgent escalation alerts are sent ONLY to the Caregiver's account/device!
+            const shouldDeliverEscalation = currentUserRole === 'caregiver';
+
+            if (shouldDeliverEscalation) {
+              sendNativeBrowserNotification(phrasing.title, phrasing.voiceLine);
+              speakText(phrasing.voiceLine);
+              setCurrentTriggered({ reminder: r, isEscalated: true });
+              break;
+            }
           }
         }
       }
