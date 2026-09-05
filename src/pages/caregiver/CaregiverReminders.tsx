@@ -144,61 +144,67 @@ export const CaregiverReminders: React.FC = () => {
       </div>
 
       {/* PART 1 — DEVICE MODE SELECTION SETTING */}
-      <Card className="p-6 border-2 border-teal-200 bg-gradient-to-br from-teal-50/50 to-white">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-1 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-100 text-teal-800 text-xs font-black uppercase tracking-wider rounded-full">
-              <Smartphone className="w-3.5 h-3.5" /> Part 1: Household Device Mode Setting
+      <Card className="p-6 border-2 border-teal-200 bg-gradient-to-br from-teal-50/50 to-white space-y-5">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-teal-100 text-teal-800 text-xs font-black uppercase tracking-wider rounded-full">
+            <Smartphone className="w-3.5 h-3.5" /> Household Device Mode Setting
+          </div>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-900">Patient Device Ownership Configuration</h3>
+          <p className="text-slate-600 text-sm sm:text-base font-medium leading-relaxed max-w-4xl">
+            Select how <span className="font-bold text-slate-900">{targetPatientName}</span> accesses CogniCare. This controls whether reminder banners & voice lines are phrased for the Caregiver or directly for the Patient.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* SHARED DEVICE CARD (DEFAULT) */}
+          <button
+            type="button"
+            onClick={() => handleDeviceModeChange('shared')}
+            className={`p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+              deviceMode === 'shared'
+                ? 'bg-teal-700 text-white border-teal-800 shadow-lg ring-2 ring-teal-400'
+                : 'bg-white text-slate-800 border-slate-300 hover:border-teal-600'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-black text-base flex items-center gap-2">
+                <Users className="w-5 h-5" /> Shared Device Mode
+              </span>
+              {deviceMode === 'shared' && (
+                <span className="text-[10px] uppercase font-black bg-white text-teal-800 px-2.5 py-0.5 rounded-full shadow-sm">
+                  Active Default
+                </span>
+              )}
             </div>
-            <h3 className="text-xl font-black text-slate-900">Patient Device Ownership Configuration</h3>
-            <p className="text-slate-600 text-sm font-medium leading-relaxed">
-              Select how {targetPatientName} accesses CogniCare. This controls whether reminder banners & voice lines are phrased for the Caregiver or directly for the Patient.
+            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${deviceMode === 'shared' ? 'text-teal-100' : 'text-slate-500'}`}>
+              Caregiver & Patient use the same phone. Alerts phrase for Caregiver to hand over phone or give medicine.
             </p>
-          </div>
+          </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto shrink-0">
-            {/* SHARED DEVICE CARD (DEFAULT) */}
-            <button
-              type="button"
-              onClick={() => handleDeviceModeChange('shared')}
-              className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                deviceMode === 'shared'
-                  ? 'bg-teal-700 text-white border-teal-800 shadow-md ring-2 ring-teal-400'
-                  : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-extrabold text-sm flex items-center gap-1.5">
-                  <Users className="w-4 h-4" /> Shared Device
+          {/* SEPARATE DEVICE CARD */}
+          <button
+            type="button"
+            onClick={() => handleDeviceModeChange('separate')}
+            className={`p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+              deviceMode === 'separate'
+                ? 'bg-indigo-700 text-white border-indigo-800 shadow-lg ring-2 ring-indigo-400'
+                : 'bg-white text-slate-800 border-slate-300 hover:border-indigo-600'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-black text-base flex items-center gap-2">
+                <Smartphone className="w-5 h-5" /> Separate Device Mode
+              </span>
+              {deviceMode === 'separate' && (
+                <span className="text-[10px] uppercase font-black bg-white text-indigo-800 px-2.5 py-0.5 rounded-full shadow-sm">
+                  Active
                 </span>
-                {deviceMode === 'shared' && <span className="text-[10px] uppercase font-black bg-white text-teal-800 px-2 py-0.5 rounded-full">Active Default</span>}
-              </div>
-              <p className={`text-xs ${deviceMode === 'shared' ? 'text-teal-100' : 'text-slate-500'}`}>
-                Caregiver & Patient use the same phone. Alerts phrase for Caregiver to hand over phone/give medicine.
-              </p>
-            </button>
-
-            {/* SEPARATE DEVICE CARD */}
-            <button
-              type="button"
-              onClick={() => handleDeviceModeChange('separate')}
-              className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                deviceMode === 'separate'
-                  ? 'bg-indigo-700 text-white border-indigo-800 shadow-md ring-2 ring-indigo-400'
-                  : 'bg-white text-slate-800 border-slate-300 hover:border-slate-400'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-extrabold text-sm flex items-center gap-1.5">
-                  <Smartphone className="w-4 h-4" /> Separate Device
-                </span>
-                {deviceMode === 'separate' && <span className="text-[10px] uppercase font-black bg-white text-indigo-800 px-2 py-0.5 rounded-full">Active</span>}
-              </div>
-              <p className={`text-xs ${deviceMode === 'separate' ? 'text-indigo-100' : 'text-slate-500'}`}>
-                Patient has their own phone/tablet. Alerts phrase directly for Patient. Escalates to Caregiver if unconfirmed.
-              </p>
-            </button>
-          </div>
+              )}
+            </div>
+            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${deviceMode === 'separate' ? 'text-indigo-100' : 'text-slate-500'}`}>
+              Patient has their own phone/tablet. Alerts phrase directly for Patient. Escalates to Caregiver if unconfirmed.
+            </p>
+          </button>
         </div>
       </Card>
 
