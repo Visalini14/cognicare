@@ -7,6 +7,27 @@ import { VoiceInput } from './VoiceInput';
 import { Bell, Pill, Droplet, Brain, Calendar, CheckCircle2, Volume2, X } from 'lucide-react';
 import type { Reminder, UserProfile } from '../../types';
 
+export function parseTimeToHHMM(timeStr: string): { hours: number; minutes: number } | null {
+  if (!timeStr) return null;
+  const s = timeStr.trim().toLowerCase();
+  const match = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3] ? match[3].toLowerCase() : null;
+
+  if (ampm) {
+    if (ampm === 'pm' && hours < 12) hours += 12;
+    if (ampm === 'am' && hours === 12) hours = 0;
+  }
+
+  if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+    return { hours, minutes };
+  }
+  return null;
+}
+
 export const ReminderDeliveryManager: React.FC = () => {
   const { user } = useAuth();
   const { speakText } = useLanguage();
@@ -50,7 +71,7 @@ export const ReminderDeliveryManager: React.FC = () => {
     };
   }, [targetPatientId]);
 
-  // Main Background Interval Check (Every 10 seconds)
+  // Main Background Interval Check (Every 3 seconds)
   useEffect(() => {
     let isMounted = true;
 
@@ -60,6 +81,8 @@ export const ReminderDeliveryManager: React.FC = () => {
       const reminders = liveReminders.length > 0 ? liveReminders : await getReminders(targetPatientId);
 
       const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
       const currentHHMM = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       const current12Hour = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
       const todayStr = now.toISOString().split('T')[0];
@@ -72,13 +95,19 @@ export const ReminderDeliveryManager: React.FC = () => {
         const isSharedMode = (r.deviceMode || 'shared') === 'shared';
         const currentUserRole = user?.role || 'patient';
 
-        // Check time match (supports both 24-hr "09:00" and 12-hr "09:00 AM")
-        const isTimeMatch =
+        // Robust time matching (handles 12-hr, 24-hr, single-digit hours like 2:58 PM, 02:58 PM, 14:58)
+        const parsedR = parseTimeToHHMM(reminderTime);
+        const isParsedMatch = parsedR
+          ? parsedR.hours === currentHours && parsedR.minutes === currentMinutes
+          : false;
+
+        const isStringMatch =
           rTimeUpper === currentHHMM.toUpperCase() ||
           rTimeUpper === current12Hour.toUpperCase() ||
           rTimeUpper.replace(/\s+/g, '') === current12Hour.replace(/\s+/g, '').toUpperCase();
 
-        const triggerKey = `${r.id}_${todayStr}_${rTimeUpper}`;
+        const isTimeMatch = isParsedMatch || isStringMatch;
+        const triggerKey = `${r.id}_${todayStr}_${currentHours}:${currentMinutes}`;
 
         // 1. TRIGGER REMINDER AT SCHEDULED TIME
         if (isTimeMatch && !checkedTimestampsRef.current.has(triggerKey) && r.lastTriggeredAt !== todayStr) {
@@ -100,19 +129,11 @@ export const ReminderDeliveryManager: React.FC = () => {
             details: `Scheduled ${r.title} triggered for ${pName} (${isSharedMode ? 'Shared Device' : 'Separate Device'}).`,
           });
 
-          // DEVICE MODE RECIPIENT FILTER FOR SCHEDULED TRIGGER TIME:
-          // - Shared Device Mode: Alert ONLY on Caregiver account (caregiver handles phone)
-          // - Separate Device Mode: Alert ONLY on Patient account (patient has own device)
-          const shouldDeliverAtScheduledTime = isSharedMode
-            ? currentUserRole === 'caregiver'
-            : currentUserRole === 'patient';
-
-          if (shouldDeliverAtScheduledTime) {
-            sendNativeBrowserNotification(phrasing.title, phrasing.voiceLine);
-            speakText(phrasing.voiceLine);
-            setCurrentTriggered({ reminder: r, isEscalated: false });
-            break;
-          }
+          // Deliver visual popup modal and voice alert to ANY active user viewing the platform at trigger time
+          sendNativeBrowserNotification(phrasing.title, phrasing.voiceLine);
+          speakText(phrasing.voiceLine);
+          setCurrentTriggered({ reminder: r, isEscalated: false });
+          break;
         }
 
         // 2. CHECK 5-MINUTE ESCALATION WINDOW FOR UNCONFIRMED REMINDERS

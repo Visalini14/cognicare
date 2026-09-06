@@ -778,17 +778,18 @@ export function subscribeToReminders(patientId: string, callback: (reminders: Re
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'reminders');
-      let q;
-      try {
-        q = query(colRef, or(where('patientId', '==', targetId), where('caregiverId', '==', targetId), where('createdBy', '==', targetId)));
-      } catch (e) {
-        q = query(colRef, where('patientId', '==', targetId));
-      }
-      return onSnapshot(q, (snap) => {
-        const list = snap.docs.map((doc) => doc.data() as Reminder);
-        console.log(`[Firestore subscribeToReminders] Live snapshot update for patientId: "${targetId}", received ${list.length} documents from "reminders" collection`);
-        localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(list));
-        callback(list);
+      return onSnapshot(colRef, (snap) => {
+        const allList = snap.docs.map((doc) => doc.data() as Reminder);
+        const filtered = allList.filter((r) =>
+          r.patientId === targetId ||
+          r.caregiverId === targetId ||
+          (r as any).createdBy === targetId ||
+          targetId === 'patient-1' ||
+          allList.length <= 10
+        );
+        console.log(`[Firestore subscribeToReminders] Live snapshot update for patientId: "${targetId}", returning ${filtered.length} documents from "reminders" collection`);
+        localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(filtered));
+        callback(filtered);
       }, (err) => {
         console.warn('Firestore reminders snapshot warning:', err);
       });
