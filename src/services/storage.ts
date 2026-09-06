@@ -11,6 +11,20 @@ const STORAGE_KEYS = {
   RECOGNITION_LOGS: 'cognicare_demo_recognition_logs',
 };
 
+export function cleanupDummyFamilyMembers(): void {
+  const existingJson = localStorage.getItem(STORAGE_KEYS.FAMILY);
+  if (!existingJson) return;
+  try {
+    const list: FamilyMember[] = JSON.parse(existingJson);
+    const dummyNames = ['Anand', 'Priya', 'Meena'];
+    const dummyIds = ['fam-1', 'fam-2', 'fam-3'];
+    const cleaned = list.filter((m) => !dummyNames.includes(m.name) && !dummyIds.includes(m.id));
+    localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(cleaned));
+  } catch (e) {
+    console.warn('Error cleaning dummy family members', e);
+  }
+}
+
 export function seedDemoData() {
   if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
     const demoUsers: Record<string, UserProfile> = {
@@ -155,21 +169,43 @@ export function seedDemoData() {
   }
 }
 
-export function cleanupDummyFamilyMembers(): void {
-  const existingJson = localStorage.getItem(STORAGE_KEYS.FAMILY);
-  if (!existingJson) return;
+export async function cleanupAutoSeededReminders(): Promise<void> {
+  localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify([]));
 
-  try {
-    const list: FamilyMember[] = JSON.parse(existingJson);
-    const dummyNames = ['Anand', 'Priya', 'Meena'];
-    const dummyIds = ['fam-1', 'fam-2', 'fam-3'];
-    const cleaned = list.filter((m) => !dummyNames.includes(m.name) && !dummyIds.includes(m.id));
-    localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(cleaned));
-  } catch (e) {
-    console.warn('Error cleaning dummy family members', e);
+  if (isFirebaseConfigured && db) {
+    try {
+      const snap = await getDocs(collection(db, 'reminders'));
+      if (!snap.empty) {
+        for (const docSnap of snap.docs) {
+          const id = docSnap.id;
+          const data = docSnap.data();
+          if (
+            id.startsWith('rem-1788') ||
+            id.startsWith('rem-1') ||
+            id.startsWith('rem-2') ||
+            id.startsWith('rem-3') ||
+            id.startsWith('rem-4') ||
+            data.title === 'Morning Medication' ||
+            data.title === 'Hydration Drink' ||
+            data.title === 'Morning Blood Pressure Medication' ||
+            data.title === 'Mid-Day Glass of Water'
+          ) {
+            try {
+              await deleteDoc(doc(db, 'reminders', id));
+              console.log(`[Firestore Cleanup] Successfully purged auto-seeded reminder: ${id}`);
+            } catch (err) {
+              console.warn('Error purging reminder:', err);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error querying reminders for cleanup:', e);
+    }
   }
 }
 
+cleanupAutoSeededReminders();
 seedDemoData();
 
 /* USER PROFILE FIRESTORE API */
