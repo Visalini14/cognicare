@@ -169,50 +169,28 @@ export function seedDemoData() {
   }
 }
 
-export async function cleanupAutoSeededReminders(): Promise<void> {
-  localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify([]));
-
-  if (isFirebaseConfigured && db) {
-    try {
-      const snap = await getDocs(collection(db, 'reminders'));
-      if (!snap.empty) {
-        for (const docSnap of snap.docs) {
-          const id = docSnap.id;
-          const data = docSnap.data();
-          if (
-            id.startsWith('rem-1788') ||
-            id.startsWith('rem-1') ||
-            id.startsWith('rem-2') ||
-            id.startsWith('rem-3') ||
-            id.startsWith('rem-4') ||
-            data.title === 'Morning Medication' ||
-            data.title === 'Hydration Drink' ||
-            data.title === 'Morning Blood Pressure Medication' ||
-            data.title === 'Mid-Day Glass of Water'
-          ) {
-            try {
-              await deleteDoc(doc(db, 'reminders', id));
-              console.log(`[Firestore Cleanup] Successfully purged auto-seeded reminder: ${id}`);
-            } catch (err) {
-              console.warn('Error purging reminder:', err);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Error querying reminders for cleanup:', e);
+export function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const sanitized: Record<string, any> = {};
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      sanitized[key] = obj[key];
     }
-  }
+  });
+  return sanitized as T;
 }
 
-cleanupAutoSeededReminders();
+export async function cleanupAutoSeededReminders(): Promise<void> {
+  // Legacy cleanup placeholder (no-op to prevent deleting user reminders)
+  return;
+}
+
 seedDemoData();
 
 /* USER PROFILE FIRESTORE API */
 export async function saveUserProfile(user: UserProfile): Promise<void> {
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'users', user.uid), user, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore(user), { merge: true });
     } catch (e) {
       console.error('Firestore user profile save failed:', e);
     }
@@ -329,7 +307,7 @@ export async function saveGameResult(result: Omit<GameResult, 'id'>): Promise<Ga
 
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'gameResults', newId), fullResult);
+      await setDoc(doc(db, 'gameResults', newId), sanitizeForFirestore(fullResult));
     } catch (e) {
       console.warn('Firestore game result save failed', e);
     }
@@ -440,7 +418,7 @@ export async function saveFamilyMember(member: Omit<FamilyMember, 'id' | 'create
 
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'familyMembers', id), fullMember);
+      await setDoc(doc(db, 'familyMembers', id), sanitizeForFirestore(fullMember));
     } catch (e) {
       console.warn('Firestore family member save failed', e);
     }
@@ -599,12 +577,14 @@ export async function saveReminder(reminder: Omit<Reminder, 'id' | 'createdAt'> 
     createdAt: isEdit ? (reminder as Reminder).createdAt || new Date().toISOString() : new Date().toISOString(),
   };
 
+  const payload = sanitizeForFirestore(fullReminder);
+
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'reminders', id), fullReminder, { merge: true });
+      await setDoc(doc(db, 'reminders', id), payload, { merge: true });
       console.log(`[Firestore saveReminder] Successfully saved document "${id}" to "reminders" collection for patient "${fullReminder.patientId}"`);
     } catch (e) {
-      console.warn('Firestore reminder save failed', e);
+      console.error('Firestore reminder save failed:', e);
     }
   }
 
@@ -717,7 +697,7 @@ export async function saveActivityLogEntry(entry: Omit<ActivityLogEntry, 'id' | 
 
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'activityLogs', id), fullEntry);
+      await setDoc(doc(db, 'activityLogs', id), sanitizeForFirestore(fullEntry));
     } catch (e) {
       console.warn('Firestore activity log save failed', e);
     }
@@ -746,7 +726,7 @@ export async function saveRecognitionLog(log: Omit<RecognitionLog, 'id' | 'times
 
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'recognitionLogs', id), fullLog);
+      await setDoc(doc(db, 'recognitionLogs', id), sanitizeForFirestore(fullLog));
     } catch (e) {
       console.warn('Firestore recognition log save failed', e);
     }
