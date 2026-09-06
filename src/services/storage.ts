@@ -65,65 +65,7 @@ export function seedDemoData() {
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.REMINDERS)) {
-    const demoReminders: Reminder[] = [
-      {
-        id: 'rem-1',
-        caregiverId: 'caregiver-1',
-        patientId: 'patient-1',
-        patientName: 'Aarav Sharma',
-        type: 'medicine',
-        title: 'Morning Blood Pressure Medication',
-        time: '09:00 AM',
-        note: 'Take 1 tablet after breakfast with warm water',
-        frequency: 'daily',
-        deviceMode: 'shared',
-        status: 'pending',
-        createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-      },
-      {
-        id: 'rem-2',
-        caregiverId: 'caregiver-1',
-        patientId: 'patient-1',
-        patientName: 'Aarav Sharma',
-        type: 'hydration',
-        title: 'Mid-Day Glass of Water',
-        time: '02:00 PM',
-        note: 'Fresh electrolyte water drink',
-        frequency: 'daily',
-        deviceMode: 'shared',
-        status: 'pending',
-        createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-      },
-      {
-        id: 'rem-3',
-        caregiverId: 'caregiver-1',
-        patientId: 'patient-1',
-        patientName: 'Aarav Sharma',
-        type: 'activity',
-        title: 'Memory Match Activity Session',
-        time: '05:00 PM',
-        note: 'Cognitive brain exercise session',
-        frequency: 'daily',
-        deviceMode: 'shared',
-        status: 'pending',
-        createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-      },
-      {
-        id: 'rem-4',
-        caregiverId: 'caregiver-1',
-        patientId: 'patient-1',
-        patientName: 'Aarav Sharma',
-        type: 'appointment',
-        title: 'Monthly Neurologist Checkup',
-        time: '11:00 AM',
-        note: 'City Hospital OPD Room 204 with Dr. Verma',
-        frequency: 'once',
-        deviceMode: 'shared',
-        status: 'pending',
-        createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(demoReminders));
+    localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify([]));
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOGS)) {
@@ -583,53 +525,9 @@ export async function getReminders(patientId?: string): Promise<Reminder[]> {
             return filtered;
           }
         }
-        console.log(`[Firestore getReminders] Initializing "reminders" collection in Firestore for targetId: "${targetId}"`);
-        const initialReminders: Reminder[] = [
-          {
-            id: 'rem-' + Date.now() + '-1',
-            caregiverId: 'caregiver-1',
-            patientId: targetId,
-            patientName: 'Aarav Sharma',
-            type: 'medicine',
-            title: 'Morning Medication',
-            time: '09:00 AM',
-            note: 'Take 1 tablet after breakfast',
-            frequency: 'daily',
-            deviceMode: 'shared',
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'rem-' + Date.now() + '-2',
-            caregiverId: 'caregiver-1',
-            patientId: targetId,
-            patientName: 'Aarav Sharma',
-            type: 'hydration',
-            title: 'Hydration Drink',
-            time: '02:00 PM',
-            note: 'Drink a full glass of water',
-            frequency: 'daily',
-            deviceMode: 'shared',
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-          },
-        ];
-
-        for (const rem of initialReminders) {
-          const fullRem = {
-            ...rem,
-            scheduledTime: rem.time,
-            createdBy: rem.caregiverId,
-            repeatFrequency: rem.frequency,
-          };
-          try {
-            await setDoc(doc(db, 'reminders', rem.id), fullRem, { merge: true });
-            console.log(`[Firestore getReminders] Seeded reminder document "${rem.id}" to "reminders" collection`);
-          } catch (e) {
-            console.warn('Error seeding reminder to Firestore:', e);
-          }
-        }
-        return initialReminders;
+        console.log(`[Firestore getReminders] Queried patientId: "${targetId}", returned 0 documents in "reminders" collection`);
+        localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify([]));
+        return [];
       }
     } catch (e) {
       console.warn('Firestore reminders fetch failed', e);
