@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { getReminders, updateReminderStatus, saveActivityLogEntry, getUserProfile } from '../../services/storage';
+import { getReminders, updateReminderStatus, saveActivityLogEntry, getUserProfile, subscribeToUserProfile, subscribeToReminders } from '../../services/storage';
 import { getReminderPhrasing, sendNativeBrowserNotification, requestBrowserNotificationPermission } from '../../services/reminderService';
 import { VoiceInput } from './VoiceInput';
 import { Bell, Pill, Droplet, Brain, Calendar, CheckCircle2, Volume2, X } from 'lucide-react';
@@ -17,6 +17,7 @@ export const ReminderDeliveryManager: React.FC = () => {
   } | null>(null);
 
   const [patientProfile, setPatientProfile] = useState<UserProfile | null>(null);
+  const [liveReminders, setLiveReminders] = useState<Reminder[]>([]);
   const checkedTimestampsRef = useRef<Set<string>>(new Set());
 
   const targetPatientId = user?.role === 'caregiver' ? user.patientId || 'patient-1' : user?.uid || 'patient-1';
@@ -26,13 +27,27 @@ export const ReminderDeliveryManager: React.FC = () => {
     requestBrowserNotificationPermission();
   }, []);
 
-  // Fetch patient profile for deviceMode check
+  // Real-time Firestore subscriptions for Patient Profile & Reminders
   useEffect(() => {
     async function loadPatient() {
       const p = await getUserProfile(targetPatientId);
       setPatientProfile(p);
     }
     loadPatient();
+
+    const unsubProfile = subscribeToUserProfile(targetPatientId, (updatedProfile) => {
+      if (updatedProfile) setPatientProfile(updatedProfile);
+    });
+
+    const unsubReminders = subscribeToReminders(targetPatientId, (updatedReminders) => {
+      console.log(`[ReminderDeliveryManager] Received ${updatedReminders.length} live reminders from Firestore for patientId: "${targetPatientId}"`);
+      setLiveReminders(updatedReminders);
+    });
+
+    return () => {
+      unsubProfile();
+      unsubReminders();
+    };
   }, [targetPatientId]);
 
   // Main Background Interval Check (Every 10 seconds)
@@ -42,7 +57,7 @@ export const ReminderDeliveryManager: React.FC = () => {
     async function checkScheduledReminders() {
       if (!isMounted) return;
 
-      const reminders = await getReminders(targetPatientId);
+      const reminders = liveReminders.length > 0 ? liveReminders : await getReminders(targetPatientId);
 
       const now = new Date();
       const currentHHMM = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });

@@ -182,7 +182,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleHighContrast = () => {
-    setHighContrastMode(prev => !prev);
+    setHighContrastMode(prev => {
+      const next = !prev;
+      if (user) {
+        const updated = { ...user, highContrastMode: next };
+        setUser(updated);
+        saveUserProfile(updated);
+      }
+      return next;
+    });
   };
 
   return (

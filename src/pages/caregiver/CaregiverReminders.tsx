@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getReminders, saveReminder, deleteReminder, updateReminderStatus, getUserProfile, updatePatientDeviceMode } from '../../services/storage';
+import { getReminders, saveReminder, deleteReminder, updateReminderStatus, getUserProfile, updatePatientDeviceMode, subscribeToReminders } from '../../services/storage';
 import { Card, Button, EmptyState } from '../../components/common/UIComponents';
 import { Bell, Plus, Pill, Droplet, Brain, Calendar, Clock, Edit2, Trash2, CheckCircle2, Smartphone, Users, AlertCircle } from 'lucide-react';
 import type { Reminder, ReminderCategory, ReminderFrequency, DeviceMode } from '../../types';
 
 export const CaregiverReminders: React.FC = () => {
   const { user } = useAuth();
-  const targetPatientId = user?.patientId || 'patient-1';
+  const targetPatientId = user?.patientId || (user as any)?.linkedPatientId || (user?.role === 'patient' ? user?.uid : 'patient-1');
   const targetPatientName = user?.patientName || 'Aarav Sharma';
 
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -37,11 +37,10 @@ export const CaregiverReminders: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(async () => {
-      const data = await getReminders(targetPatientId);
-      setReminders(data);
-    }, 3000);
-    return () => clearInterval(interval);
+    const unsub = subscribeToReminders(targetPatientId, (updatedList: Reminder[]) => {
+      setReminders(updatedList);
+    });
+    return () => unsub();
   }, [targetPatientId]);
 
   const handleDeviceModeChange = async (mode: DeviceMode) => {

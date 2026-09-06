@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getGameResults, getAllPatients } from '../../services/storage';
+import { getAllPatients, subscribeToGameResults, subscribeToUserProfile } from '../../services/storage';
 import { getAdaptiveState } from '../../services/adaptiveDifficulty';
 import { Card, StatCard, DifficultyBadge, EmptyState } from '../../components/common/UIComponents';
 import {
@@ -35,25 +35,57 @@ export const CaregiverDashboard: React.FC = () => {
   const { user, linkPatient } = useAuth();
   const [results, setResults] = useState<GameResult[]>([]);
   const [patients, setPatients] = useState<UserProfile[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [targetPatientProfile, setTargetPatientProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const targetPatientId = user?.patientId || 'patient-1';
-  const targetPatientName = user?.patientName || 'Aarav Sharma';
+  // Resolve target patient UID cleanly from user profile or patient list
+  const resolvedPatientId = selectedPatientId ||
+    user?.patientId ||
+    (user as any)?.linkedPatientId ||
+    (user?.role === 'patient' ? user?.uid : null) ||
+    (patients.length > 0 ? patients[0].uid : 'patient-1');
 
+  const activePatientObj = patients.find(p => p.uid === resolvedPatientId);
+  const targetPatientName = targetPatientProfile?.name || activePatientObj?.name || user?.patientName || 'Aarav Sharma';
+
+  // Load all patients list once
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const data = await getGameResults(targetPatientId);
+    async function loadPatients() {
       const allP = await getAllPatients();
-      setResults(data);
       setPatients(allP);
-      setLoading(false);
     }
-    loadData();
-  }, [targetPatientId]);
+    loadPatients();
+  }, []);
+
+  // Real-time Firestore subscription for Patient User Profile (cognitiveLevel live sync)
+  useEffect(() => {
+    const unsubProfile = subscribeToUserProfile(resolvedPatientId, (pProfile) => {
+      if (pProfile) {
+        console.log(`[CaregiverDashboard] Live patient profile update for "${resolvedPatientId}", cognitiveLevel: ${pProfile.cognitiveLevel}`);
+        setTargetPatientProfile(pProfile);
+      }
+    });
+    return () => unsubProfile();
+  }, [resolvedPatientId]);
+
+  // Real-time Firestore subscription for Game Results matching resolved patient ID
+  useEffect(() => {
+    setLoading(true);
+    console.log(`[CaregiverDashboard] Subscribing real-time to gameResults for patientId: "${resolvedPatientId}"`);
+
+    const unsub = subscribeToGameResults(resolvedPatientId, (data) => {
+      console.log(`[CaregiverDashboard] Real-time gameResults snapshot updated for patientId: "${resolvedPatientId}", received ${data.length} documents`);
+      setResults(data);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [resolvedPatientId]);
 
   const handleSwitchPatient = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
+    setSelectedPatientId(selectedId);
     const selectedObj = patients.find(p => p.uid === selectedId);
     if (selectedObj) {
       await linkPatient(selectedObj.uid, selectedObj.name);
@@ -63,7 +95,7 @@ export const CaregiverDashboard: React.FC = () => {
   const gamesPlayed = results.length;
   const avgAccuracy = gamesPlayed > 0 ? Math.round(results.reduce((acc, r) => acc + r.accuracy, 0) / gamesPlayed) : 0;
   const avgResponseTime = gamesPlayed > 0 ? Number((results.reduce((acc, r) => acc + r.responseTime, 0) / gamesPlayed).toFixed(1)) : 0;
-  const currentCognitiveLevel = getAdaptiveState(targetPatientId, 'memory-match').currentLevel;
+  const currentCognitiveLevel = targetPatientProfile?.cognitiveLevel || activePatientObj?.cognitiveLevel || getAdaptiveState(resolvedPatientId, 'memory-match').currentLevel || 1;
 
   const timeSeriesData = React.useMemo(() => {
     return [...results]
@@ -126,7 +158,7 @@ export const CaregiverDashboard: React.FC = () => {
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-2xl">
               <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Switch Ward:</span>
               <select
-                value={targetPatientId}
+                value={resolvedPatientId}
                 onChange={handleSwitchPatient}
                 className="bg-transparent text-xs font-bold text-slate-800 cursor-pointer focus:outline-none"
               >

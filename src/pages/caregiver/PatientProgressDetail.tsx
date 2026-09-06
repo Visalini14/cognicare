@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getGameResults } from '../../services/storage';
+import { subscribeToGameResults } from '../../services/storage';
 import { Card, StatCard, DifficultyBadge, EmptyState } from '../../components/common/UIComponents';
 import { BarChart3, Award, Clock, Brain, Calendar, Filter, UserCheck } from 'lucide-react';
 import type { GameResult } from '../../types';
 
 export const PatientProgressDetail: React.FC = () => {
   const { user } = useAuth();
-  const targetPatientId = user?.patientId || 'patient-1';
+
+  const effectivePatientId = user?.patientId ||
+    (user as any)?.linkedPatientId ||
+    (user?.role === 'patient' ? user?.uid : 'patient-1');
   const targetPatientName = user?.patientName || 'Aarav Sharma';
 
   const [results, setResults] = useState<GameResult[]>([]);
@@ -16,15 +19,22 @@ export const PatientProgressDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const data = await getGameResults(targetPatientId);
+    setLoading(true);
+    console.log(`[PatientProgressDetail] Subscribing real-time to gameResults for patientId: "${effectivePatientId}"`);
+
+    const unsub = subscribeToGameResults(effectivePatientId, (data) => {
+      console.log(`[PatientProgressDetail] Real-time gameResults update for patientId: "${effectivePatientId}", received ${data.length} records`);
       setResults(data);
-      setFilteredResults(data);
+      if (selectedGame === 'all') {
+        setFilteredResults(data);
+      } else {
+        setFilteredResults(data.filter((r) => r.gameType === selectedGame));
+      }
       setLoading(false);
-    }
-    loadData();
-  }, [targetPatientId]);
+    });
+
+    return () => unsub();
+  }, [effectivePatientId, selectedGame]);
 
   const handleFilterChange = (game: string) => {
     setSelectedGame(game);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getAdaptiveState, updateAdaptiveState, getGameDifficultyParams } from '../../services/adaptiveDifficulty';
-import { saveGameResult } from '../../services/storage';
+import { saveGameResult, saveRecognitionLog } from '../../services/storage';
 import { GameHeader } from '../../components/common/GameHeader';
 import { ResultScreen } from '../../components/common/ResultScreen';
 import { Button, Card, DifficultyBadge } from '../../components/common/UIComponents';
@@ -215,6 +215,15 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
     if (isCorrect) {
       setCorrectAnswers(prev => prev + 1);
     }
+
+    saveRecognitionLog({
+      patientId: userId,
+      patientName: user?.name || 'Aarav Sharma',
+      matchedMemberId: null,
+      matchedMemberName: currentQuestion.correctAnswer,
+      confidenceScore: isCorrect ? 100 : 0,
+      gameType: 'recognition-quiz',
+    });
 
     const { newState, levelChanged: changeType } = updateAdaptiveState(
       userId,

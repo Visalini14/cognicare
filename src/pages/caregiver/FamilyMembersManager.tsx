@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getFamilyMembers, saveFamilyMember, deleteFamilyMember, uploadFamilyPhoto, seedDemoData, compressImage } from '../../services/storage';
+import { getFamilyMembers, saveFamilyMember, deleteFamilyMember, uploadFamilyPhoto, seedDemoData, subscribeToFamilyMembers, compressImage } from '../../services/storage';
 import { extractFaceEmbeddingFromSource, ensureFamilyEmbeddings } from '../../services/faceRecognition';
 import { Card, Button, Modal, Input, Select, EmptyState } from '../../components/common/UIComponents';
 import { Users, Plus, Edit2, Trash2, Image as ImageIcon, Heart, UserCheck, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
@@ -40,6 +40,11 @@ export const FamilyMembersManager: React.FC = () => {
 
   useEffect(() => {
     loadMembers();
+    const unsub = subscribeToFamilyMembers(targetPatientId, async (updatedList: FamilyMember[]) => {
+      const processed = await ensureFamilyEmbeddings(updatedList);
+      setMembers(processed);
+    });
+    return () => unsub();
   }, [targetPatientId]);
 
   const handleRefreshEmbeddings = async () => {

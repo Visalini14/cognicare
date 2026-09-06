@@ -1,4 +1,6 @@
 import type { AdaptiveDifficultyState, GameType } from '../types';
+import { isFirebaseConfigured, db } from './firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 const STORAGE_KEY_PREFIX = 'cognicare_adaptive_level_';
 
@@ -32,6 +34,8 @@ export function getAdaptiveState(userId: string, gameType: GameType): AdaptiveDi
  * Rules:
  * - 3 consecutive correct -> +1 level (max 5)
  * - 1 incorrect -> -1 level (min 1)
+ *
+ * Persists cognitiveLevel directly to Firestore 'users' collection immediately.
  */
 export function updateAdaptiveState(
   userId: string,
@@ -80,6 +84,27 @@ export function updateAdaptiveState(
     localStorage.setItem(`${STORAGE_KEY_PREFIX}${userId}_${gameType}`, JSON.stringify(newState));
   } catch (e) {
     console.error('Error saving adaptive difficulty state', e);
+  }
+
+  // PERSIST COGNITIVE LEVEL TO FIRESTORE "users" DOCUMENT IMMEDIATELY
+  if (isFirebaseConfigured && db && userId) {
+    try {
+      setDoc(doc(db, 'users', userId), { cognitiveLevel: newLevel }, { merge: true });
+      console.log(`[Firestore updateAdaptiveState] Saved cognitiveLevel ${newLevel} to users/${userId}`);
+    } catch (e) {
+      console.warn('Firestore adaptive level save failed:', e);
+    }
+  }
+
+  const activeUserStr = localStorage.getItem('cognicare_active_user');
+  if (activeUserStr) {
+    try {
+      const activeUser = JSON.parse(activeUserStr);
+      if (activeUser.uid === userId) {
+        activeUser.cognitiveLevel = newLevel;
+        localStorage.setItem('cognicare_active_user', JSON.stringify(activeUser));
+      }
+    } catch (e) {}
   }
 
   return { newState, levelChanged };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getFamilyMembers, saveGameResult } from '../../services/storage';
+import { getFamilyMembers, saveGameResult, saveRecognitionLog } from '../../services/storage';
 import { getAdaptiveState, updateAdaptiveState } from '../../services/adaptiveDifficulty';
 import {
   extractFaceEmbeddingFromSource,
@@ -275,6 +275,16 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
     if (isCorrect) {
       setCorrectAnswers((prev) => prev + 1);
     }
+
+    // Save Recognition History to Firestore
+    saveRecognitionLog({
+      patientId: userId,
+      patientName: user?.name || 'Aarav Sharma',
+      matchedMemberId: isCorrect ? currentMember?.id : null,
+      matchedMemberName: isCorrect ? currentMember?.name : option.name,
+      confidenceScore: isCorrect ? 100 : 0,
+      gameType: 'family-recognition',
+    });
 
     const { levelChanged: changeType } = updateAdaptiveState(
       userId,

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getGameResults, getActivityLogs } from '../../services/storage';
+import { subscribeToGameResults, subscribeToActivityLogs } from '../../services/storage';
 import { Card, DifficultyBadge, EmptyState } from '../../components/common/UIComponents';
 import { ShieldCheck, Calendar, Search, UserCheck, Bell, Gamepad2 } from 'lucide-react';
 
@@ -20,7 +20,9 @@ interface UnifiedLogItem {
 
 export const ActivityLog: React.FC = () => {
   const { user } = useAuth();
-  const targetPatientId = user?.patientId || 'patient-1';
+  const effectivePatientId = user?.patientId ||
+    (user as any)?.linkedPatientId ||
+    (user?.role === 'patient' ? user?.uid : 'patient-1');
   const targetPatientName = user?.patientName || 'Aarav Sharma';
 
   const [logs, setLogs] = useState<UnifiedLogItem[]>([]);
@@ -28,11 +30,10 @@ export const ActivityLog: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const gameData = await getGameResults(targetPatientId);
-      const reminderLogs = await getActivityLogs(targetPatientId);
+    setLoading(true);
+    console.log(`[ActivityLog] Subscribing real-time to gameResults and activityLogs for patientId: "${effectivePatientId}"`);
 
+    function renderUnifiedLogs(gameData: any[], reminderLogs: any[]) {
       const unifiedGameItems: UnifiedLogItem[] = gameData.map((g) => ({
         id: g.id,
         timestamp: g.createdAt,
@@ -59,11 +60,31 @@ export const ActivityLog: React.FC = () => {
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
+      console.log(`[ActivityLog] Rendered unified logs for patientId: "${effectivePatientId}", total items: ${combined.length}`);
       setLogs(combined);
       setLoading(false);
     }
-    loadData();
-  }, [targetPatientId, targetPatientName]);
+
+    let currentGames: any[] = [];
+    let currentLogs: any[] = [];
+
+    const unsubGames = subscribeToGameResults(effectivePatientId, (gList: any[]) => {
+      console.log(`[ActivityLog] Real-time gameResults update for patientId: "${effectivePatientId}", received ${gList.length} documents`);
+      currentGames = gList;
+      renderUnifiedLogs(currentGames, currentLogs);
+    });
+
+    const unsubLogs = subscribeToActivityLogs(effectivePatientId, (aList: any[]) => {
+      console.log(`[ActivityLog] Real-time activityLogs update for patientId: "${effectivePatientId}", received ${aList.length} documents`);
+      currentLogs = aList;
+      renderUnifiedLogs(currentGames, currentLogs);
+    });
+
+    return () => {
+      unsubGames();
+      unsubLogs();
+    };
+  }, [effectivePatientId, targetPatientName]);
 
   const filtered = logs.filter(
     (item) =>

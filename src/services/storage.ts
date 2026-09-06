@@ -1,7 +1,6 @@
-import { isFirebaseConfigured, db, storage } from './firebase';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, deleteDoc } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import type { UserProfile, GameResult, FamilyMember, Reminder, ActivityLogEntry, DeviceMode, ReminderStatus } from '../types';
+import { isFirebaseConfigured, db } from './firebase';
+import { collection, doc, setDoc, getDoc, getDocs, query, where, orderBy, deleteDoc, onSnapshot, or } from 'firebase/firestore';
+import type { UserProfile, GameResult, FamilyMember, Reminder, ActivityLogEntry, RecognitionLog, DeviceMode, ReminderStatus } from '../types';
 
 const STORAGE_KEYS = {
   USERS: 'cognicare_demo_users',
@@ -9,6 +8,7 @@ const STORAGE_KEYS = {
   FAMILY: 'cognicare_demo_family',
   REMINDERS: 'cognicare_demo_reminders',
   ACTIVITY_LOGS: 'cognicare_demo_activity_logs',
+  RECOGNITION_LOGS: 'cognicare_demo_recognition_logs',
 };
 
 export function seedDemoData() {
@@ -20,6 +20,9 @@ export function seedDemoData() {
         email: 'patient@cognicare.demo',
         role: 'patient',
         deviceMode: 'shared',
+        preferredLanguage: 'en-US',
+        highContrastMode: false,
+        voiceEnabled: true,
         createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
       },
       'patient-2': {
@@ -28,6 +31,9 @@ export function seedDemoData() {
         email: 'ramesh@cognicare.demo',
         role: 'patient',
         deviceMode: 'shared',
+        preferredLanguage: 'en-US',
+        highContrastMode: false,
+        voiceEnabled: true,
         createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
       },
       'patient-3': {
@@ -36,6 +42,9 @@ export function seedDemoData() {
         email: 'saraswati@cognicare.demo',
         role: 'patient',
         deviceMode: 'shared',
+        preferredLanguage: 'en-US',
+        highContrastMode: false,
+        voiceEnabled: true,
         createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
       },
       'caregiver-1': {
@@ -46,6 +55,9 @@ export function seedDemoData() {
         patientId: 'patient-1',
         patientName: 'Aarav Sharma',
         deviceMode: 'shared',
+        preferredLanguage: 'en-US',
+        highContrastMode: false,
+        voiceEnabled: true,
         createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
       },
     };
@@ -138,7 +150,6 @@ export function seedDemoData() {
     localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(demoLogs));
   }
 
-  // CLEANUP DUMMY / SAMPLE FAMILY MEMBERS (Anand, Priya, Meena)
   cleanupDummyFamilyMembers();
 
   if (!localStorage.getItem(STORAGE_KEYS.RESULTS)) {
@@ -202,10 +213,6 @@ export function seedDemoData() {
   }
 }
 
-/**
- * Clean up dummy/seeded sample family member records (Anand, Priya, Meena)
- * Preserves ONLY user-registered family members (e.g. Salu).
- */
 export function cleanupDummyFamilyMembers(): void {
   const existingJson = localStorage.getItem(STORAGE_KEYS.FAMILY);
   if (!existingJson) return;
@@ -214,10 +221,7 @@ export function cleanupDummyFamilyMembers(): void {
     const list: FamilyMember[] = JSON.parse(existingJson);
     const dummyNames = ['Anand', 'Priya', 'Meena'];
     const dummyIds = ['fam-1', 'fam-2', 'fam-3'];
-
-    // Filter out dummy/sample family records
     const cleaned = list.filter((m) => !dummyNames.includes(m.name) && !dummyIds.includes(m.id));
-
     localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(cleaned));
   } catch (e) {
     console.warn('Error cleaning dummy family members', e);
@@ -226,10 +230,11 @@ export function cleanupDummyFamilyMembers(): void {
 
 seedDemoData();
 
+/* USER PROFILE FIRESTORE API */
 export async function saveUserProfile(user: UserProfile): Promise<void> {
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'users', user.uid), user);
+      await setDoc(doc(db, 'users', user.uid), user, { merge: true });
     } catch (e) {
       console.error('Firestore user profile save failed:', e);
     }
@@ -240,41 +245,74 @@ export async function saveUserProfile(user: UserProfile): Promise<void> {
 }
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  if (isFirebaseConfigured && db) {
+  if (isFirebaseConfigured && db && uid) {
     try {
       const snap = await getDoc(doc(db, 'users', uid));
       if (snap.exists()) {
-        return snap.data() as UserProfile;
+        const rawData = snap.data();
+        const isPatient = rawData.role === 'patient' || !rawData.role;
+        const initialLevel = rawData.cognitiveLevel ?? (isPatient ? 1 : undefined);
+
+        const profile: UserProfile = {
+          ...(rawData as UserProfile),
+          patientId: rawData.patientId || rawData.linkedPatientId,
+          cognitiveLevel: initialLevel,
+        };
+
+        // If cognitiveLevel was missing on Firestore document for a patient, write cognitiveLevel: 1 immediately
+        if (isPatient && rawData.cognitiveLevel === undefined) {
+          try {
+            await setDoc(doc(db, 'users', uid), { cognitiveLevel: 1 }, { merge: true });
+            console.log(`[Firestore getUserProfile] Persisted initial cognitiveLevel: 1 to users/${uid}`);
+          } catch (e) {
+            console.warn('Failed to save default cognitiveLevel to Firestore', e);
+          }
+        }
+
+        // Mirror locally
+        const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
+        users[uid] = profile;
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+        return profile;
       }
     } catch (e) {
       console.warn('Firestore user fetch failed', e);
     }
   }
   const users = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
-  return users[uid] || null;
+  const profile = users[uid] || null;
+  if (profile) {
+    profile.patientId = profile.patientId || (profile as any).linkedPatientId;
+    if ((profile.role === 'patient' || !profile.role) && profile.cognitiveLevel === undefined) {
+      profile.cognitiveLevel = 1;
+    }
+  }
+  return profile;
 }
 
 export async function getAllPatients(): Promise<UserProfile[]> {
   const patientsMap = new Map<string, UserProfile>();
 
-  // 1. Load local patient accounts (demo accounts + local signups)
   const usersObj: Record<string, UserProfile> = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
   Object.values(usersObj).forEach((u) => {
-    if (u && u.role === 'patient') {
+    if (u && (u.role === 'patient' || !u.role)) {
       patientsMap.set(u.uid, u);
     }
   });
 
-  // 2. Fetch remote Firestore patient accounts if Firebase is configured
   if (isFirebaseConfigured && db) {
     try {
-      const q = query(collection(db, 'users'), where('role', '==', 'patient'));
-      const snap = await getDocs(q);
+      const snap = await getDocs(collection(db, 'users'));
       if (!snap.empty) {
         snap.docs.forEach((docSnap) => {
-          const data = docSnap.data() as UserProfile;
-          if (data && data.role === 'patient') {
-            patientsMap.set(data.uid, data);
+          const data = docSnap.data() as any;
+          const uid = data.uid || docSnap.id;
+          if (data.role === 'patient' || (!data.role && !uid.includes('caregiver'))) {
+            patientsMap.set(uid, {
+              ...data,
+              uid,
+              role: 'patient',
+            });
           }
         });
       }
@@ -283,7 +321,9 @@ export async function getAllPatients(): Promise<UserProfile[]> {
     }
   }
 
-  return Array.from(patientsMap.values());
+  const resultList = Array.from(patientsMap.values());
+  console.log(`[Firestore getAllPatients] Fetched ${resultList.length} patient profiles:`, resultList.map((p) => ({ uid: p.uid, name: p.name })));
+  return resultList;
 }
 
 export async function updateUserPatientLink(caregiverUid: string, patientId: string, patientName: string): Promise<UserProfile | null> {
@@ -300,9 +340,14 @@ export async function updateUserPatientLink(caregiverUid: string, patientId: str
   return updated;
 }
 
+/* GAME RESULTS FIRESTORE API */
 export async function saveGameResult(result: Omit<GameResult, 'id'>): Promise<GameResult> {
-  const newId = 'res-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4);
-  const fullResult: GameResult = { ...result, id: newId };
+  const newId = 'res-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+  const fullResult: GameResult & { patientId?: string } = {
+    ...result,
+    id: newId,
+    patientId: result.userId,
+  };
 
   if (isFirebaseConfigured && db) {
     try {
@@ -316,17 +361,52 @@ export async function saveGameResult(result: Omit<GameResult, 'id'>): Promise<Ga
   results.unshift(fullResult);
   localStorage.setItem(STORAGE_KEYS.RESULTS, JSON.stringify(results));
 
+  // Auto-log activity event
+  await saveActivityLogEntry({
+    patientId: fullResult.userId,
+    patientName: fullResult.userName || 'Aarav Sharma',
+    eventType: 'game_played',
+    title: `Game Played: ${fullResult.gameType.replace('-', ' ')}`,
+    details: `Score: ${fullResult.score} | Accuracy: ${fullResult.accuracy}% | Time: ${fullResult.responseTime}s | Level ${fullResult.difficultyLevel}`,
+  });
+
   return fullResult;
 }
 
 export async function getGameResults(userId?: string): Promise<GameResult[]> {
+  const targetId = userId || 'patient-1';
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'gameResults');
-      const q = userId ? query(colRef, where('userId', '==', userId), orderBy('createdAt', 'desc')) : query(colRef, orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
+      let snap;
+      try {
+        const q = query(colRef, or(where('userId', '==', targetId), where('patientId', '==', targetId)));
+        snap = await getDocs(q);
+      } catch (e) {
+        const q = query(colRef, where('userId', '==', targetId));
+        snap = await getDocs(q);
+      }
+
       if (!snap.empty) {
-        return snap.docs.map((doc) => doc.data() as GameResult);
+        const firestoreResults = snap.docs.map((doc) => doc.data() as GameResult);
+        firestoreResults.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        console.log(`[Firestore getGameResults] Queried patientId/userId: "${targetId}", returned ${firestoreResults.length} documents`);
+        localStorage.setItem(STORAGE_KEYS.RESULTS, JSON.stringify(firestoreResults));
+        return firestoreResults;
+      } else {
+        const allSnap = await getDocs(colRef);
+        if (!allSnap.empty) {
+          const filtered = allSnap.docs
+            .map((doc) => doc.data() as GameResult)
+            .filter((r) => r.userId === targetId || (r as any).patientId === targetId);
+          if (filtered.length > 0) {
+            filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            console.log(`[Firestore getGameResults Fallback] Queried patientId/userId: "${targetId}", returned ${filtered.length} documents`);
+            localStorage.setItem(STORAGE_KEYS.RESULTS, JSON.stringify(filtered));
+            return filtered;
+          }
+        }
+        console.log(`[Firestore getGameResults] Queried patientId/userId: "${targetId}", returned 0 documents`);
       }
     } catch (e) {
       console.warn('Firestore game results fetch failed', e);
@@ -334,16 +414,14 @@ export async function getGameResults(userId?: string): Promise<GameResult[]> {
   }
 
   const results: GameResult[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.RESULTS) || '[]');
-  if (userId) {
-    return results.filter((r) => r.userId === userId);
-  }
-  return results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const filtered = results
+    .filter((r) => r.userId === targetId || (r as any).patientId === targetId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  console.log(`[LocalStorage getGameResults] Queried patientId/userId: "${targetId}", returned ${filtered.length} documents`);
+  return filtered;
 }
 
-/**
- * STRICT PATIENT DATA ISOLATION:
- * Retrieves family members belonging ONLY to the specified patient or caregiver account.
- */
+/* FAMILY MEMBERS FIRESTORE API */
 export async function getFamilyMembers(targetPatientId?: string): Promise<FamilyMember[]> {
   const patientIdToQuery = targetPatientId || 'patient-1';
 
@@ -353,7 +431,9 @@ export async function getFamilyMembers(targetPatientId?: string): Promise<Family
       const q = query(colRef, where('patientId', '==', patientIdToQuery));
       const snap = await getDocs(q);
       if (!snap.empty) {
-        return snap.docs.map((doc) => doc.data() as FamilyMember);
+        const members = snap.docs.map((doc) => doc.data() as FamilyMember);
+        localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(members));
+        return members;
       }
     } catch (e) {
       console.warn('Firestore family members fetch failed', e);
@@ -414,7 +494,7 @@ export async function deleteFamilyMember(id: string): Promise<void> {
   localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(filtered));
 }
 
-export function compressImage(dataUrl: string, maxWidth = 600, quality = 0.75): Promise<string> {
+export function compressImage(dataUrl: string, maxWidth = 500, quality = 0.7): Promise<string> {
   return new Promise((resolve) => {
     if (!dataUrl || !dataUrl.startsWith('data:image')) {
       resolve(dataUrl);
@@ -453,6 +533,10 @@ export function compressImage(dataUrl: string, maxWidth = 600, quality = 0.75): 
   });
 }
 
+/**
+ * Compressed Base64 Photo Upload (No Firebase Storage Dependency)
+ * Keeps image size well under 500KB (~35KB-50KB base64 JPEG) directly stored in Firestore document.
+ */
 export async function uploadFamilyPhoto(fileOrDataUrl: File | string): Promise<string> {
   let dataUrl = typeof fileOrDataUrl === 'string' ? fileOrDataUrl : '';
   if (typeof fileOrDataUrl !== 'string') {
@@ -464,24 +548,7 @@ export async function uploadFamilyPhoto(fileOrDataUrl: File | string): Promise<s
     });
   }
 
-  // Compress photo before uploading/saving to stay well below Firestore's 1MB limit
-  const compressed = await compressImage(dataUrl, 600, 0.75);
-
-  if (isFirebaseConfigured && storage) {
-    try {
-      const fileRef = ref(storage, `family_photos/${Date.now()}_${Math.random().toString(36).substring(2, 6)}.jpg`);
-      const uploadPromise = uploadString(fileRef, compressed, 'data_url').then(() => getDownloadURL(fileRef));
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Firebase Storage timeout')), 3500)
-      );
-
-      return await Promise.race([uploadPromise, timeoutPromise]);
-    } catch (e) {
-      console.warn('Firebase storage upload fallback to compressed image:', e);
-    }
-  }
-
-  return compressed;
+  return await compressImage(dataUrl, 500, 0.7);
 }
 
 /* REMINDERS STORAGE API */
@@ -490,10 +557,79 @@ export async function getReminders(patientId?: string): Promise<Reminder[]> {
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'reminders');
-      const q = query(colRef, where('patientId', '==', targetId));
-      const snap = await getDocs(q);
+      let snap;
+      try {
+        const q = query(colRef, or(where('patientId', '==', targetId), where('caregiverId', '==', targetId), where('createdBy', '==', targetId)));
+        snap = await getDocs(q);
+      } catch (e) {
+        const q = query(colRef, where('patientId', '==', targetId));
+        snap = await getDocs(q);
+      }
+
       if (!snap.empty) {
-        return snap.docs.map((doc) => doc.data() as Reminder);
+        const reminders = snap.docs.map((doc) => doc.data() as Reminder);
+        console.log(`[Firestore getReminders] Queried patientId: "${targetId}", returned ${reminders.length} documents`);
+        localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(reminders));
+        return reminders;
+      } else {
+        const allSnap = await getDocs(colRef);
+        if (!allSnap.empty) {
+          const filtered = allSnap.docs
+            .map((doc) => doc.data() as Reminder)
+            .filter((r) => r.patientId === targetId || r.caregiverId === targetId || (r as any).createdBy === targetId);
+          if (filtered.length > 0) {
+            console.log(`[Firestore getReminders Fallback] Queried patientId: "${targetId}", returned ${filtered.length} documents`);
+            localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(filtered));
+            return filtered;
+          }
+        }
+        console.log(`[Firestore getReminders] Initializing "reminders" collection in Firestore for targetId: "${targetId}"`);
+        const initialReminders: Reminder[] = [
+          {
+            id: 'rem-' + Date.now() + '-1',
+            caregiverId: 'caregiver-1',
+            patientId: targetId,
+            patientName: 'Aarav Sharma',
+            type: 'medicine',
+            title: 'Morning Medication',
+            time: '09:00 AM',
+            note: 'Take 1 tablet after breakfast',
+            frequency: 'daily',
+            deviceMode: 'shared',
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 'rem-' + Date.now() + '-2',
+            caregiverId: 'caregiver-1',
+            patientId: targetId,
+            patientName: 'Aarav Sharma',
+            type: 'hydration',
+            title: 'Hydration Drink',
+            time: '02:00 PM',
+            note: 'Drink a full glass of water',
+            frequency: 'daily',
+            deviceMode: 'shared',
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          },
+        ];
+
+        for (const rem of initialReminders) {
+          const fullRem = {
+            ...rem,
+            scheduledTime: rem.time,
+            createdBy: rem.caregiverId,
+            repeatFrequency: rem.frequency,
+          };
+          try {
+            await setDoc(doc(db, 'reminders', rem.id), fullRem, { merge: true });
+            console.log(`[Firestore getReminders] Seeded reminder document "${rem.id}" to "reminders" collection`);
+          } catch (e) {
+            console.warn('Error seeding reminder to Firestore:', e);
+          }
+        }
+        return initialReminders;
       }
     } catch (e) {
       console.warn('Firestore reminders fetch failed', e);
@@ -501,22 +637,27 @@ export async function getReminders(patientId?: string): Promise<Reminder[]> {
   }
 
   const list: Reminder[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.REMINDERS) || '[]');
-  return list.filter((r) => r.patientId === targetId || r.caregiverId === targetId);
+  const filtered = list.filter((r) => r.patientId === targetId || r.caregiverId === targetId);
+  console.log(`[LocalStorage getReminders] Queried patientId: "${targetId}", returned ${filtered.length} documents`);
+  return filtered;
 }
 
 export async function saveReminder(reminder: Omit<Reminder, 'id' | 'createdAt'> & { id?: string }): Promise<Reminder> {
   const isEdit = Boolean(reminder.id);
   const id = reminder.id || 'rem-' + Date.now();
-  const fullReminder: Reminder = {
+  const fullReminder: Reminder & { scheduledTime?: string; createdBy?: string; repeatFrequency?: string } = {
     id,
     caregiverId: reminder.caregiverId,
+    createdBy: reminder.caregiverId,
     patientId: reminder.patientId || 'patient-1',
     patientName: reminder.patientName || 'Aarav Sharma',
     type: reminder.type,
     title: reminder.title,
     time: reminder.time,
+    scheduledTime: reminder.time,
     note: reminder.note || '',
     frequency: reminder.frequency || 'daily',
+    repeatFrequency: reminder.frequency || 'daily',
     deviceMode: reminder.deviceMode || 'shared',
     status: reminder.status || 'pending',
     lastTriggeredAt: reminder.lastTriggeredAt,
@@ -526,7 +667,8 @@ export async function saveReminder(reminder: Omit<Reminder, 'id' | 'createdAt'> 
 
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'reminders', id), fullReminder);
+      await setDoc(doc(db, 'reminders', id), fullReminder, { merge: true });
+      console.log(`[Firestore saveReminder] Successfully saved document "${id}" to "reminders" collection for patient "${fullReminder.patientId}"`);
     } catch (e) {
       console.warn('Firestore reminder save failed', e);
     }
@@ -584,10 +726,35 @@ export async function getActivityLogs(patientId?: string): Promise<ActivityLogEn
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'activityLogs');
-      const q = query(colRef, where('patientId', '==', targetId), orderBy('timestamp', 'desc'));
-      const snap = await getDocs(q);
+      let snap;
+      try {
+        const q = query(colRef, or(where('patientId', '==', targetId), where('userId', '==', targetId)));
+        snap = await getDocs(q);
+      } catch (e) {
+        const q = query(colRef, where('patientId', '==', targetId));
+        snap = await getDocs(q);
+      }
+
       if (!snap.empty) {
-        return snap.docs.map((doc) => doc.data() as ActivityLogEntry);
+        const logs = snap.docs.map((doc) => doc.data() as ActivityLogEntry);
+        logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        console.log(`[Firestore getActivityLogs] Queried patientId: "${targetId}", returned ${logs.length} documents`);
+        localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(logs));
+        return logs;
+      } else {
+        const allSnap = await getDocs(colRef);
+        if (!allSnap.empty) {
+          const filtered = allSnap.docs
+            .map((doc) => doc.data() as ActivityLogEntry)
+            .filter((l) => l.patientId === targetId || (l as any).userId === targetId);
+          if (filtered.length > 0) {
+            filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            console.log(`[Firestore getActivityLogs Fallback] Queried patientId: "${targetId}", returned ${filtered.length} documents`);
+            localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(filtered));
+            return filtered;
+          }
+        }
+        console.log(`[Firestore getActivityLogs] Queried patientId: "${targetId}", returned 0 documents`);
       }
     } catch (e) {
       console.warn('Firestore activity logs fetch failed', e);
@@ -595,9 +762,11 @@ export async function getActivityLogs(patientId?: string): Promise<ActivityLogEn
   }
 
   const list: ActivityLogEntry[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.ACTIVITY_LOGS) || '[]');
-  return list
-    .filter((log) => log.patientId === targetId)
+  const filtered = list
+    .filter((log) => log.patientId === targetId || (log as any).userId === targetId)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  console.log(`[LocalStorage getActivityLogs] Queried patientId: "${targetId}", returned ${filtered.length} documents`);
+  return filtered;
 }
 
 export async function saveActivityLogEntry(entry: Omit<ActivityLogEntry, 'id' | 'timestamp'> & { timestamp?: string }): Promise<ActivityLogEntry> {
@@ -627,6 +796,54 @@ export async function saveActivityLogEntry(entry: Omit<ActivityLogEntry, 'id' | 
   return fullEntry;
 }
 
+/* RECOGNITION LOGS STORAGE API */
+export async function saveRecognitionLog(log: Omit<RecognitionLog, 'id' | 'timestamp'>): Promise<RecognitionLog> {
+  const id = 'rec-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+  const fullLog: RecognitionLog = {
+    id,
+    patientId: log.patientId || 'patient-1',
+    patientName: log.patientName || 'Aarav Sharma',
+    matchedMemberId: log.matchedMemberId || null,
+    matchedMemberName: log.matchedMemberName || 'Unknown',
+    confidenceScore: log.confidenceScore,
+    gameType: log.gameType,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (isFirebaseConfigured && db) {
+    try {
+      await setDoc(doc(db, 'recognitionLogs', id), fullLog);
+    } catch (e) {
+      console.warn('Firestore recognition log save failed', e);
+    }
+  }
+
+  const list: RecognitionLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.RECOGNITION_LOGS) || '[]');
+  list.unshift(fullLog);
+  localStorage.setItem(STORAGE_KEYS.RECOGNITION_LOGS, JSON.stringify(list));
+
+  return fullLog;
+}
+
+export async function getRecognitionLogs(patientId?: string): Promise<RecognitionLog[]> {
+  const targetId = patientId || 'patient-1';
+  if (isFirebaseConfigured && db) {
+    try {
+      const colRef = collection(db, 'recognitionLogs');
+      const q = query(colRef, where('patientId', '==', targetId), orderBy('timestamp', 'desc'));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs.map((doc) => doc.data() as RecognitionLog);
+      }
+    } catch (e) {
+      console.warn('Firestore recognition logs fetch failed', e);
+    }
+  }
+
+  const list: RecognitionLog[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.RECOGNITION_LOGS) || '[]');
+  return list.filter((r) => r.patientId === targetId);
+}
+
 export async function updatePatientDeviceMode(patientId: string, deviceMode: DeviceMode): Promise<UserProfile | null> {
   const profile = await getUserProfile(patientId);
   if (!profile) return null;
@@ -638,4 +855,126 @@ export async function updatePatientDeviceMode(patientId: string, deviceMode: Dev
 
   await saveUserProfile(updated);
   return updated;
+}
+
+/* REAL-TIME FIRESTORE SUBSCRIPTIONS (onSnapshot) */
+
+export function subscribeToReminders(patientId: string, callback: (reminders: Reminder[]) => void): () => void {
+  const targetId = patientId || 'patient-1';
+  if (isFirebaseConfigured && db) {
+    try {
+      const colRef = collection(db, 'reminders');
+      let q;
+      try {
+        q = query(colRef, or(where('patientId', '==', targetId), where('caregiverId', '==', targetId), where('createdBy', '==', targetId)));
+      } catch (e) {
+        q = query(colRef, where('patientId', '==', targetId));
+      }
+      return onSnapshot(q, (snap) => {
+        const list = snap.docs.map((doc) => doc.data() as Reminder);
+        console.log(`[Firestore subscribeToReminders] Live snapshot update for patientId: "${targetId}", received ${list.length} documents from "reminders" collection`);
+        localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore reminders snapshot warning:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore reminders subscription failed:', e);
+    }
+  }
+  return () => {};
+}
+
+export function subscribeToActivityLogs(patientId: string, callback: (logs: ActivityLogEntry[]) => void): () => void {
+  const targetId = patientId || 'patient-1';
+  if (isFirebaseConfigured && db) {
+    try {
+      const colRef = collection(db, 'activityLogs');
+      let q;
+      try {
+        q = query(colRef, or(where('patientId', '==', targetId), where('userId', '==', targetId)));
+      } catch (e) {
+        q = query(colRef, where('patientId', '==', targetId));
+      }
+      return onSnapshot(q, (snap) => {
+        const list = snap.docs.map((doc) => doc.data() as ActivityLogEntry);
+        list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        console.log(`[Firestore subscribeToActivityLogs] Live update for patientId: "${targetId}", received ${list.length} documents`);
+        localStorage.setItem(STORAGE_KEYS.ACTIVITY_LOGS, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore activityLogs snapshot warning:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore activityLogs subscription failed:', e);
+    }
+  }
+  return () => {};
+}
+
+export function subscribeToGameResults(patientId: string, callback: (results: GameResult[]) => void): () => void {
+  const targetId = patientId || 'patient-1';
+  if (isFirebaseConfigured && db) {
+    try {
+      const colRef = collection(db, 'gameResults');
+      let q;
+      try {
+        q = query(colRef, or(where('userId', '==', targetId), where('patientId', '==', targetId)));
+      } catch (e) {
+        q = query(colRef, where('userId', '==', targetId));
+      }
+      return onSnapshot(q, (snap) => {
+        const list = snap.docs.map((doc) => doc.data() as GameResult);
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        console.log(`[Firestore subscribeToGameResults] Live update for patientId/userId: "${targetId}", received ${list.length} documents`);
+        localStorage.setItem(STORAGE_KEYS.RESULTS, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore gameResults snapshot warning:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore gameResults subscription failed:', e);
+    }
+  }
+  return () => {};
+}
+
+export function subscribeToFamilyMembers(patientId: string, callback: (members: FamilyMember[]) => void): () => void {
+  const targetId = patientId || 'patient-1';
+  if (isFirebaseConfigured && db) {
+    try {
+      const colRef = collection(db, 'familyMembers');
+      const q = query(colRef, where('patientId', '==', targetId));
+      return onSnapshot(q, (snap) => {
+        const list = snap.docs.map((doc) => doc.data() as FamilyMember);
+        localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore familyMembers snapshot warning:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore familyMembers subscription failed:', e);
+    }
+  }
+  return () => {};
+}
+
+export function subscribeToUserProfile(uid: string, callback: (profile: UserProfile | null) => void): () => void {
+  if (isFirebaseConfigured && db && uid) {
+    try {
+      const docRef = doc(db, 'users', uid);
+      return onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const profile = docSnap.data() as UserProfile;
+          localStorage.setItem('cognicare_active_user', JSON.stringify(profile));
+          callback(profile);
+        }
+      }, (err) => {
+        console.warn('Firestore userProfile snapshot warning:', err);
+      });
+    } catch (e) {
+      console.warn('Firestore userProfile subscription failed:', e);
+    }
+  }
+  return () => {};
 }

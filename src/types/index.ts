@@ -10,6 +10,21 @@ export interface UserProfile {
   patientId?: string;   // For caregivers: the linked patient UID
   patientName?: string; // Cache of linked patient name
   deviceMode?: DeviceMode; // 'shared' (default) vs 'separate'
+  preferredLanguage?: string; // e.g. 'en-US', 'ta-IN', 'hi-IN'
+  highContrastMode?: boolean;
+  voiceEnabled?: boolean;
+  cognitiveLevel?: number; // Adaptive difficulty level (1-5) synced to Firestore
+}
+
+export interface RecognitionLog {
+  id: string;
+  patientId: string;
+  patientName?: string;
+  matchedMemberId?: string | null;
+  matchedMemberName?: string;
+  confidenceScore: number; // Percentage (0 - 100)
+  gameType: string;
+  timestamp: string;
 }
 
 export type ReminderCategory = 'medicine' | 'hydration' | 'activity' | 'appointment';

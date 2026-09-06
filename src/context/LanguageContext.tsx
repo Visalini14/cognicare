@@ -6,6 +6,7 @@ import { synthesizeGoogleSpeech, getGoogleTtsApiKey, setGoogleTtsApiKey, isGoogl
 import { loadFreeSpeechEngine, stopInstantFreeSpeech } from '../services/freeTts';
 import { synthesizeBhashiniSpeech, getBhashiniCredentials, setBhashiniCredentials, isBhashiniAvailable } from '../services/bhashiniTts';
 import { stopGoogleTranslateSpeech } from '../services/googleTranslateTts';
+import { saveUserProfile } from '../services/storage';
 
 interface LanguageContextType {
   currentLanguage: LanguageCode;
@@ -90,12 +91,30 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setLanguage = (lang: LanguageCode) => {
     setCurrentLanguageState(lang);
     localStorage.setItem('cognicare_language', lang);
+    const activeUserStr = localStorage.getItem('cognicare_active_user');
+    if (activeUserStr) {
+      try {
+        const profile = JSON.parse(activeUserStr);
+        if (profile?.uid) {
+          saveUserProfile({ ...profile, preferredLanguage: lang });
+        }
+      } catch (e) {}
+    }
   };
 
   const toggleAutoVoice = () => {
     setIsAutoVoiceEnabled(prev => {
       const next = !prev;
       localStorage.setItem('cognicare_auto_voice', String(next));
+      const activeUserStr = localStorage.getItem('cognicare_active_user');
+      if (activeUserStr) {
+        try {
+          const profile = JSON.parse(activeUserStr);
+          if (profile?.uid) {
+            saveUserProfile({ ...profile, voiceEnabled: next });
+          }
+        } catch (e) {}
+      }
       return next;
     });
   };
