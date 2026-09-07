@@ -655,9 +655,6 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
             <h3 className="text-2xl sm:text-4xl font-black leading-tight tracking-tight">
               Which photo shows your <span className="text-amber-300 underline decoration-amber-400 decoration-wavy underline-offset-4">{currentMember.relationship}</span>?
             </h3>
-            <p className="text-teal-200 text-lg font-bold">
-              ({currentMember.name})
-            </p>
           </div>
 
           {!isAnswered && (
