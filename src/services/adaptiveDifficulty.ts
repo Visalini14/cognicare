@@ -178,6 +178,21 @@ export function getGameDifficultyParams(gameType: GameType, level: number): Diff
       };
     }
 
+    case 'tap-target-color': {
+      const gridObjectCounts = [6, 8, 12, 16, 20];
+      const targetObjectCounts = [2, 3, 4, 5, 6];
+      const timeLimitsSec = [12, 10, 8, 7, 5];
+      return {
+        pairs: targetObjectCounts[boundedLevel - 1] ?? 2,
+        sequenceLength: gridObjectCounts[boundedLevel - 1] ?? 6,
+        optionCount: Math.min(8, boundedLevel + 3),
+        displaySpeedMs: (timeLimitsSec[boundedLevel - 1] ?? 10) * 1000,
+        previewTimeMs: 1000,
+        difficultyTier: boundedLevel,
+        showHints: boundedLevel <= 2,
+      };
+    }
+
     default:
       return {
         pairs: 3,

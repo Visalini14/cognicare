@@ -3,12 +3,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { getAdaptiveState } from '../../services/adaptiveDifficulty';
 import { Card, Button, DifficultyBadge } from '../../components/common/UIComponents';
-import { Brain, Sparkles, HelpCircle, Users, ArrowRight, Heart } from 'lucide-react';
+import { Brain, Sparkles, HelpCircle, Users, ArrowRight, Heart, Target } from 'lucide-react';
 import type { GameType } from '../../types';
 import { MemoryMatchGame } from '../../games/memory-match/MemoryMatchGame';
 import { PatternRecallGame } from '../../games/pattern-recall/PatternRecallGame';
 import { RecognitionQuizGame } from '../../games/recognition/RecognitionQuizGame';
 import { FamilyRecognitionGame } from '../../games/family-recognition/FamilyRecognitionGame';
+import { TapTargetColorGame } from '../../games/tap-target-color/TapTargetColorGame';
 
 export const PatientDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -34,7 +35,19 @@ export const PatientDashboard: React.FC = () => {
     return <FamilyRecognitionGame onBackToDashboard={() => setActiveGame(null)} />;
   }
 
+  if (activeGame === 'tap-target-color') {
+    return <TapTargetColorGame onBackToDashboard={() => setActiveGame(null)} />;
+  }
+
   const activities = [
+    {
+      type: 'tap-target-color' as GameType,
+      title: ui.tapTargetColorTitle || 'Tap the Target Color',
+      description: ui.tapTargetColorDesc || 'Go/No-Go visual attention task. Tap target color objects while ignoring distractors.',
+      icon: Target,
+      color: 'bg-rose-600 text-white',
+      level: getAdaptiveState(userId, 'tap-target-color').currentLevel,
+    },
     {
       type: 'memory-match' as GameType,
       title: ui.memoryMatchTitle,

@@ -65,7 +65,7 @@ export interface ActivityLogEntry {
   timestamp: string;
 }
 
-export type GameType = 'memory-match' | 'pattern-recall' | 'recognition-quiz' | 'family-recognition';
+export type GameType = 'memory-match' | 'pattern-recall' | 'recognition-quiz' | 'family-recognition' | 'tap-target-color';
 
 export interface GameResult {
   id: string;

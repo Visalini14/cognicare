@@ -20,6 +20,7 @@ import { MemoryMatchGame } from '../games/memory-match/MemoryMatchGame';
 import { PatternRecallGame } from '../games/pattern-recall/PatternRecallGame';
 import { RecognitionQuizGame } from '../games/recognition/RecognitionQuizGame';
 import { FamilyRecognitionGame } from '../games/family-recognition/FamilyRecognitionGame';
+import { TapTargetColorGame } from '../games/tap-target-color/TapTargetColorGame';
 
 // Caregiver Pages
 import { CaregiverDashboard } from '../pages/caregiver/CaregiverDashboard';
@@ -116,6 +117,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/patient/pattern-recall" element={<PatternRecallGame onBackToDashboard={() => window.history.back()} />} />
           <Route path="/patient/recognition-quiz" element={<RecognitionQuizGame onBackToDashboard={() => window.history.back()} />} />
           <Route path="/patient/family-recognition" element={<FamilyRecognitionGame onBackToDashboard={() => window.history.back()} />} />
+          <Route path="/patient/tap-target-color" element={<TapTargetColorGame onBackToDashboard={() => window.history.back()} />} />
           <Route path="/patient/progress" element={<PatientProgress />} />
           <Route path="/patient/profile" element={<PatientProfile />} />
         </Route>

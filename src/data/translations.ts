@@ -69,6 +69,8 @@ export interface UiTranslations {
   patternRecallDesc: string;
   recognitionQuizTitle: string;
   recognitionQuizDesc: string;
+  tapTargetColorTitle: string;
+  tapTargetColorDesc: string;
   startActivity: string;
   viewProgress: string;
   streakDays: string;
@@ -156,6 +158,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'Remember colored button sequences',
     recognitionQuizTitle: 'Object & Scene Quiz',
     recognitionQuizDesc: 'Identify objects and everyday scenes',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task. Tap objects matching the target color while ignoring distractors.',
     startActivity: 'Start Activity',
     viewProgress: 'View Progress',
     streakDays: 'Daily Streak',
@@ -240,6 +244,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'வண்ண வரிசையை நினைவில் வைத்து அழுத்தவும்',
     recognitionQuizTitle: 'பொருட்கள் வினாடி வினா',
     recognitionQuizDesc: 'பொருட்கள் மற்றும் இடங்களை அடையாளம் காணுங்கள்',
+    tapTargetColorTitle: 'இலக்கு நிறத்தைத் தொடுங்கள்',
+    tapTargetColorDesc: 'இலக்கு நிறத்துடன் பொருந்தும் பொருள்களை மட்டுமே தொட்டு கவனத்தை சோதியுங்கள்.',
     startActivity: 'விளையாட்டைத் தொடங்கு',
     viewProgress: 'முன்னேற்றத்தைப் பார்',
     streakDays: 'தொடர் நாட்கள்',
@@ -324,6 +330,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'रंगों के क्रम को याद करके बटन दबाएं',
     recognitionQuizTitle: 'वस्तु और दृश्य क्विज',
     recognitionQuizDesc: 'चीजों और जगहों को पहचानें',
+    tapTargetColorTitle: 'लक्ष्य रंग पर टैप करें',
+    tapTargetColorDesc: 'ध्यान केंद्रित करें और केवल लक्ष्य रंग की वस्तुओं पर टैप करें।',
     startActivity: 'खेल शुरू करें',
     viewProgress: 'प्रगति देखें',
     streakDays: 'लगातार दिन',
@@ -408,6 +416,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'రంగుల వరుసక్రమాన్ని గుర్తుంచుకోండి',
     recognitionQuizTitle: 'వస్తువుల గుర్తింపు క్విజ్',
     recognitionQuizDesc: 'వస్తువులను గుర్తించండి',
+    tapTargetColorTitle: 'లక్ష్య రంగును నొక్కండి',
+    tapTargetColorDesc: 'లక్ష్య రంగుతో పోలే వస్తువులను మాత్రమే నొక్కండి.',
     startActivity: 'ఆట ప్రారంభించు',
     viewProgress: 'పురోగతి చూడండి',
     streakDays: 'వరుస రోజులు',
@@ -492,6 +502,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'ಬಣ್ಣಗಳ ಕ್ರಮವನ್ನು ನೆನಪಿಡಿ',
     recognitionQuizTitle: 'ವಸ್ತು ಗುರುತಿಸುವಿಕೆ',
     recognitionQuizDesc: 'ವಸ್ತುಗಳನ್ನು ಗುರುತಿಸಿ',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task.',
     startActivity: 'ಆಟ ಪ್ರಾರಂಭಿಸಿ',
     viewProgress: 'ಪ್ರಗತಿ ನೋಡಿ',
     streakDays: 'ದಿನಗಳು',
@@ -576,6 +588,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'നിറങ്ങളുടെ ക്രമം ഓർമ്മിക്കുക',
     recognitionQuizTitle: 'വസ്തു തിരിച്ചറിയൽ',
     recognitionQuizDesc: 'വസ്തുക്കളെ തിരിച്ചറിയുക',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task.',
     startActivity: 'കളി തുടങ്ങുക',
     viewProgress: 'പുരോഗതി കാണുക',
     streakDays: 'ദിവസങ്ങൾ',
@@ -660,6 +674,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'রঙের ক্রম মনে রাখুন',
     recognitionQuizTitle: 'বস্তু সনাক্তকরণ',
     recognitionQuizDesc: 'বস্তু চিনুন',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task.',
     startActivity: 'গেম শুরু করুন',
     viewProgress: 'অগ্রগতি দেখুন',
     streakDays: 'দিনসমূহ',
@@ -744,6 +760,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'रंगांचा क्रम लक्षात ठेवा',
     recognitionQuizTitle: 'वस्तु ओळख क्विझ',
     recognitionQuizDesc: 'वस्तू ओळखा',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task.',
     startActivity: 'खेळ सुरू करा',
     viewProgress: 'प्रगती पहा',
     streakDays: 'दिवस',
@@ -828,6 +846,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'રંગોનો ક્રમ યાદ રાખો',
     recognitionQuizTitle: 'વસ્તુ ઓળખ ક્વિઝ',
     recognitionQuizDesc: 'વસ્તુઓ ઓળખો',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task.',
     startActivity: 'ગેમ શરૂ કરો',
     viewProgress: 'પ્રોગ્રેસ જુઓ',
     streakDays: 'દિવસો',
@@ -912,6 +932,8 @@ export const UI_TRANSLATIONS: Record<LanguageCode, UiTranslations> = {
     patternRecallDesc: 'ਰੰਗਾਂ ਦਾ ਕ੍ਰਮ ਯਾਦ ਰੱਖੋ',
     recognitionQuizTitle: 'ਵਸਤੂ ਪਛਾਣ ਕਵਿਜ਼',
     recognitionQuizDesc: 'ਚੀਜ਼ਾਂ ਪਛਾਣੋ',
+    tapTargetColorTitle: 'Tap the Target Color',
+    tapTargetColorDesc: 'Go/No-Go visual attention task.',
     startActivity: 'ਖੇਡ ਸ਼ੁਰੂ ਕਰੋ',
     viewProgress: 'ਤਰੱਕੀ ਵੇਖੋ',
     streakDays: 'ਦਿਨ',
