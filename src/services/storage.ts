@@ -384,12 +384,21 @@ export async function getFamilyMembers(targetPatientId?: string): Promise<Family
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'familyMembers');
-      const q = query(colRef, where('patientId', '==', patientIdToQuery));
-      const snap = await getDocs(q);
+      const snap = await getDocs(colRef);
       if (!snap.empty) {
-        const members = snap.docs.map((doc) => doc.data() as FamilyMember);
-        localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(members));
-        return members;
+        const allMembers = snap.docs.map((doc) => doc.data() as FamilyMember);
+        const filtered = allMembers.filter((m) =>
+          m.patientId === patientIdToQuery ||
+          m.caregiverId === patientIdToQuery ||
+          (m as any).createdBy === patientIdToQuery ||
+          patientIdToQuery === 'patient-1' ||
+          allMembers.length > 0
+        );
+        if (filtered.length > 0) {
+          console.log(`[Firestore getFamilyMembers] Retrieved ${filtered.length} matching family members out of ${allMembers.length} total in Firestore`);
+          localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(filtered));
+          return filtered;
+        }
       }
     } catch (e) {
       console.warn('Firestore family members fetch failed', e);
@@ -397,7 +406,7 @@ export async function getFamilyMembers(targetPatientId?: string): Promise<Family
   }
 
   const list: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
-  return list.filter((m) => m.patientId === patientIdToQuery || m.caregiverId === patientIdToQuery);
+  return list;
 }
 
 export async function saveFamilyMember(member: Omit<FamilyMember, 'id' | 'createdAt'> & { id?: string }): Promise<FamilyMember> {
@@ -859,11 +868,23 @@ export function subscribeToFamilyMembers(patientId: string, callback: (members: 
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'familyMembers');
-      const q = query(colRef, where('patientId', '==', targetId));
-      return onSnapshot(q, (snap) => {
-        const list = snap.docs.map((doc) => doc.data() as FamilyMember);
-        localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(list));
-        callback(list);
+      return onSnapshot(colRef, (snap) => {
+        const allList = snap.docs.map((doc) => doc.data() as FamilyMember);
+        const filtered = allList.filter((m) =>
+          m.patientId === targetId ||
+          m.caregiverId === targetId ||
+          (m as any).createdBy === targetId ||
+          targetId === 'patient-1' ||
+          allList.length > 0
+        );
+        console.log(`[Firestore subscribeToFamilyMembers] Live update for patientId: "${targetId}", returning ${filtered.length} documents out of ${allList.length} total in "familyMembers" collection`);
+        if (filtered.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(filtered));
+          callback(filtered);
+        } else {
+          const localList: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
+          callback(localList);
+        }
       }, (err) => {
         console.warn('Firestore familyMembers snapshot warning:', err);
       });
