@@ -378,35 +378,30 @@ export async function getGameResults(userId?: string): Promise<GameResult[]> {
 }
 
 /* FAMILY MEMBERS FIRESTORE API */
-export async function getFamilyMembers(targetPatientId?: string): Promise<FamilyMember[]> {
-  const patientIdToQuery = targetPatientId || 'patient-1';
+export async function getFamilyMembers(_targetPatientId?: string): Promise<FamilyMember[]> {
+  const localList: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
 
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'familyMembers');
       const snap = await getDocs(colRef);
       if (!snap.empty) {
-        const allMembers = snap.docs.map((doc) => doc.data() as FamilyMember);
-        const filtered = allMembers.filter((m) =>
-          m.patientId === patientIdToQuery ||
-          m.caregiverId === patientIdToQuery ||
-          (m as any).createdBy === patientIdToQuery ||
-          patientIdToQuery === 'patient-1' ||
-          allMembers.length > 0
-        );
-        if (filtered.length > 0) {
-          console.log(`[Firestore getFamilyMembers] Retrieved ${filtered.length} matching family members out of ${allMembers.length} total in Firestore`);
-          localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(filtered));
-          return filtered;
-        }
+        const firestoreList = snap.docs.map((doc) => doc.data() as FamilyMember);
+        const memberMap = new Map<string, FamilyMember>();
+        localList.forEach((m) => memberMap.set(m.id, m));
+        firestoreList.forEach((m) => memberMap.set(m.id, m));
+
+        const merged = Array.from(memberMap.values());
+        console.log(`[Firestore getFamilyMembers] Retrieved ${merged.length} merged family members (Firestore + LocalStorage)`);
+        localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(merged));
+        return merged;
       }
     } catch (e) {
       console.warn('Firestore family members fetch failed', e);
     }
   }
 
-  const list: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
-  return list;
+  return localList;
 }
 
 export async function saveFamilyMember(member: Omit<FamilyMember, 'id' | 'createdAt'> & { id?: string }): Promise<FamilyMember> {
@@ -863,34 +858,35 @@ export function subscribeToGameResults(patientId: string, callback: (results: Ga
   return () => {};
 }
 
-export function subscribeToFamilyMembers(patientId: string, callback: (members: FamilyMember[]) => void): () => void {
-  const targetId = patientId || 'patient-1';
+export function subscribeToFamilyMembers(_patientId: string, callback: (members: FamilyMember[]) => void): () => void {
+  const localList: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
   if (isFirebaseConfigured && db) {
     try {
       const colRef = collection(db, 'familyMembers');
       return onSnapshot(colRef, (snap) => {
-        const allList = snap.docs.map((doc) => doc.data() as FamilyMember);
-        const filtered = allList.filter((m) =>
-          m.patientId === targetId ||
-          m.caregiverId === targetId ||
-          (m as any).createdBy === targetId ||
-          targetId === 'patient-1' ||
-          allList.length > 0
-        );
-        console.log(`[Firestore subscribeToFamilyMembers] Live update for patientId: "${targetId}", returning ${filtered.length} documents out of ${allList.length} total in "familyMembers" collection`);
-        if (filtered.length > 0) {
-          localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(filtered));
-          callback(filtered);
-        } else {
-          const localList: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
-          callback(localList);
+        const firestoreList = snap.docs.map((doc) => doc.data() as FamilyMember);
+        const latestLocalList: FamilyMember[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.FAMILY) || '[]');
+
+        const memberMap = new Map<string, FamilyMember>();
+        latestLocalList.forEach((m) => memberMap.set(m.id, m));
+        firestoreList.forEach((m) => memberMap.set(m.id, m));
+
+        const merged = Array.from(memberMap.values());
+        console.log(`[Firestore subscribeToFamilyMembers] Live update returning ${merged.length} merged family members (Firestore + LocalStorage)`);
+        if (merged.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.FAMILY, JSON.stringify(merged));
         }
+        callback(merged);
       }, (err) => {
         console.warn('Firestore familyMembers snapshot warning:', err);
+        callback(localList);
       });
     } catch (e) {
       console.warn('Firestore familyMembers subscription failed:', e);
+      callback(localList);
     }
+  } else {
+    callback(localList);
   }
   return () => {};
 }

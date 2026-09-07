@@ -33,16 +33,20 @@ export const FamilyMembersManager: React.FC = () => {
   const loadMembers = async () => {
     setLoading(true);
     const data = await getFamilyMembers(targetPatientId);
-    const processed = await ensureFamilyEmbeddings(data);
-    setMembers(processed);
+    setMembers(data);
     setLoading(false);
+    ensureFamilyEmbeddings(data).then((processed) => {
+      setMembers(processed);
+    }).catch((e) => console.warn('Background descriptor notice:', e));
   };
 
   useEffect(() => {
     loadMembers();
-    const unsub = subscribeToFamilyMembers(targetPatientId, async (updatedList: FamilyMember[]) => {
-      const processed = await ensureFamilyEmbeddings(updatedList);
-      setMembers(processed);
+    const unsub = subscribeToFamilyMembers(targetPatientId, (updatedList: FamilyMember[]) => {
+      setMembers(updatedList);
+      ensureFamilyEmbeddings(updatedList).then((processed) => {
+        setMembers(processed);
+      }).catch((e) => console.warn('Background descriptor notice:', e));
     });
     return () => unsub();
   }, [targetPatientId]);
