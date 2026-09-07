@@ -158,6 +158,7 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
+  const isAnsweredRef = React.useRef(false);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const totalQuestions = 5;
   const [score, setScore] = useState(0);
@@ -179,6 +180,7 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
     setCorrectAnswers(0);
     setSelectedOption(null);
     setIsAnswered(false);
+    isAnsweredRef.current = false;
     setVoiceNotice(null);
     setScore(0);
     setAccumulatedResponseTimes([]);
@@ -199,7 +201,8 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
   }, [currentQuestion, params.optionCount]);
 
   const handleSelectOption = async (option: string, method: 'button' | 'voice' = 'button') => {
-    if (isAnswered) return;
+    if (isAnswered || isAnsweredRef.current) return;
+    isAnsweredRef.current = true;
 
     // Calculate response time strictly from when this question was shown
     const responseTimeSec = Number((Math.max(0.5, (Date.now() - startTime) / 1000)).toFixed(1));
@@ -211,6 +214,7 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
     setVoiceNotice(null);
 
     const isCorrect = option === currentQuestion.correctAnswer;
+    const updatedCorrect = isCorrect ? correctAnswers + 1 : correctAnswers;
 
     if (isCorrect) {
       setCorrectAnswers(prev => prev + 1);
@@ -240,16 +244,17 @@ export const RecognitionQuizGame: React.FC<{ onBackToDashboard: () => void }> = 
         setQuestionIndex(prev => prev + 1);
         setSelectedOption(null);
         setIsAnswered(false);
+        isAnsweredRef.current = false;
         setStartTime(Date.now()); // Reset timer for next question
       } else {
-        finishGame(isCorrect ? correctAnswers + 1 : correctAnswers, newTimes, method);
+        finishGame(updatedCorrect, newTimes, method);
       }
     }, 1400);
   };
 
   /* SPOKEN VOICE ANSWER EVALUATION */
   const handleSpokenAnswer = (spokenText: string) => {
-    if (isAnswered) return;
+    if (isAnswered || isAnsweredRef.current) return;
 
     const cleanSpoken = spokenText.toLowerCase().replace(/[^\w\s]/gi, '').trim();
     if (!cleanSpoken) return;

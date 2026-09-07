@@ -38,6 +38,7 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
+  const isAnsweredRef = useRef(false);
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [score, setScore] = useState(0);
   const [currentLevel, setCurrentLevel] = useState(1);
@@ -164,7 +165,7 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
     };
   }, [mode, cameraActive, cameraStatus]);
 
-  const currentMember = familyMembers[currentIndex];
+  const currentMember = familyMembers[currentIndex] || familyMembers[0];
 
   const INDIAN_DUMMY_PHOTOS = [
     'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=500&q=80',
@@ -227,8 +228,8 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
     // Seeded shuffle so order stays fixed for this question
     const seed = (currentIndex + 1) * 31;
     const shuffled = combined.sort((a, b) => {
-      const hashA = (a.photoUrl.length * seed) % 100;
-      const hashB = (b.photoUrl.length * seed) % 100;
+      const hashA = ((a.photoUrl || '').length * seed) % 100;
+      const hashB = ((b.photoUrl || '').length * seed) % 100;
       return hashA - hashB;
     });
 
@@ -245,6 +246,7 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
     setCorrectAnswers(0);
     setSelectedOption(null);
     setIsAnswered(false);
+    isAnsweredRef.current = false;
     setVoiceNotice(null);
     setMode('quiz');
   };
@@ -264,13 +266,15 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
   };
 
   const handleSelectQuizOption = async (option: PhotoQuizOption, method: 'button' | 'voice' = 'button') => {
-    if (isAnswered) return;
+    if (isAnswered || isAnsweredRef.current) return;
+    isAnsweredRef.current = true;
 
     setSelectedOption(option.id);
     setIsAnswered(true);
     setVoiceNotice(null);
 
     const isCorrect = option.isCorrect;
+    const updatedCorrect = isCorrect ? correctAnswers + 1 : correctAnswers;
 
     if (isCorrect) {
       setCorrectAnswers((prev) => prev + 1);
@@ -281,7 +285,7 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
       patientId: userId,
       patientName: user?.name || 'Aarav Sharma',
       matchedMemberId: isCorrect ? currentMember?.id : null,
-      matchedMemberName: isCorrect ? currentMember?.name : option.name,
+      matchedMemberName: isCorrect ? (currentMember?.name || option.name) : option.name,
       confidenceScore: isCorrect ? 100 : 0,
       gameType: 'family-recognition',
     });
@@ -300,16 +304,18 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
         setCurrentIndex((prev) => prev + 1);
         setSelectedOption(null);
         setIsAnswered(false);
+        isAnsweredRef.current = false;
       } else {
-        finishQuiz(isCorrect ? correctAnswers + 1 : correctAnswers, method);
+        finishQuiz(updatedCorrect, method);
       }
     }, 2200);
   };
 
   const handleSpokenAnswer = (spokenText: string) => {
-    if (isAnswered) return;
+    if (isAnswered || isAnsweredRef.current) return;
 
     const cleanSpoken = spokenText.toLowerCase().replace(/[^\w\s]/gi, '').trim();
+    if (!cleanSpoken) return;
 
     let matchedOption: PhotoQuizOption | undefined;
 
@@ -323,9 +329,9 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
       matchedOption = quizPhotoOptions.find((o) => o.labelIndex === 4);
     } else {
       matchedOption = quizPhotoOptions.find((o) => {
-        const cleanName = o.name.toLowerCase();
-        const cleanRel = o.relationship.toLowerCase();
-        return cleanSpoken.includes(cleanName) || cleanSpoken.includes(cleanRel);
+        const cleanName = (o.name || '').toLowerCase();
+        const cleanRel = (o.relationship || '').toLowerCase();
+        return (cleanName && cleanSpoken.includes(cleanName)) || (cleanRel && cleanSpoken.includes(cleanRel));
       });
     }
 
@@ -337,7 +343,7 @@ export const FamilyRecognitionGame: React.FC<{ onBackToDashboard: () => void }> 
   };
 
   const finishQuiz = async (finalCorrect: number, method: 'button' | 'voice') => {
-    const total = familyMembers.length;
+    const total = familyMembers.length || 1;
     const accuracyPct = Math.round((finalCorrect / total) * 100);
     const finalScore = accuracyPct;
 

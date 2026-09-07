@@ -34,6 +34,8 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
+  const hasSubmittedRef = useRef<boolean>(false);
+  const submitTimerRef = useRef<any>(null);
 
   useEffect(() => {
     // Detect Web Speech API availability across Chrome, Edge, Safari, Brave
@@ -42,6 +44,19 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
       setIsSupported(false);
     }
   }, []);
+
+  const submitTranscript = (text: string) => {
+    if (hasSubmittedRef.current) return;
+    hasSubmittedRef.current = true;
+    if (submitTimerRef.current) {
+      clearTimeout(submitTimerRef.current);
+      submitTimerRef.current = null;
+    }
+    onConfirmAnswer(text);
+    setTranscript('');
+    transcriptRef.current = '';
+    setStatus('idle');
+  };
 
   const startListening = async () => {
     if (disabled) return;
@@ -54,6 +69,11 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
     try {
       stopSpeech();
+      hasSubmittedRef.current = false;
+      if (submitTimerRef.current) {
+        clearTimeout(submitTimerRef.current);
+        submitTimerRef.current = null;
+      }
       setTranscript('');
       transcriptRef.current = '';
       setErrorMessage('');
@@ -103,10 +123,9 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
 
           if (autoSubmit) {
             setStatus('processing');
-            // Auto submit immediately!
-            setTimeout(() => {
-              onConfirmAnswer(trimmed);
-              setStatus('idle');
+            if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+            submitTimerRef.current = setTimeout(() => {
+              submitTranscript(trimmed);
             }, 300);
           }
         }
@@ -129,12 +148,11 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
       };
 
       recognition.onend = () => {
-        if (transcriptRef.current && autoSubmit) {
-          onConfirmAnswer(transcriptRef.current);
-          setTranscript('');
-          transcriptRef.current = '';
+        if (transcriptRef.current && autoSubmit && !hasSubmittedRef.current) {
+          submitTranscript(transcriptRef.current);
+        } else if (!hasSubmittedRef.current) {
+          setStatus('idle');
         }
-        setStatus('idle');
       };
 
       recognitionRef.current = recognition;
